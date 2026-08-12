@@ -119,6 +119,25 @@ impl Session {
         self.waves.max(1)
     }
 
+    pub fn completed(&self) -> usize {
+        self.progress
+            .values()
+            .filter(|p| {
+                if p.mastered_at_start {
+                    p.correct >= 1
+                } else {
+                    p.correct >= 2
+                }
+            })
+            .count()
+    }
+
+    pub fn card_hits(&self, card_id: CardId) -> (u32, u32) {
+        let rec = self.progress_for(card_id);
+        let need = if rec.mastered_at_start { 1 } else { 2 };
+        (rec.correct.min(need), need)
+    }
+
     fn introduce_wave(&mut self) -> bool {
         if self.pool.is_empty() {
             return false;
@@ -216,5 +235,7 @@ mod tests {
         let id = s.next_card().unwrap();
         s.answer(id, true);
         assert!(s.next_card().is_none());
+        assert_eq!(s.completed(), 1);
+        assert_eq!(s.card_hits(id), (1, 1));
     }
 }

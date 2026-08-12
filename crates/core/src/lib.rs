@@ -2,6 +2,7 @@ pub mod import;
 pub mod model;
 pub mod openai;
 pub mod quiz;
+pub mod seed;
 pub mod session;
 pub mod srs;
 pub mod store;

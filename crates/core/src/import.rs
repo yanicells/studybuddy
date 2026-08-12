@@ -185,6 +185,47 @@ pub fn heuristic_highlights(front: &str, back: &str) -> Vec<Highlight> {
     found
 }
 
+/// Split `text` into plain and highlighted spans for notes display.
+pub fn mark_spans(text: &str, phrases: &[String]) -> Vec<(String, bool)> {
+    let mut spans: Vec<(usize, usize)> = Vec::new();
+    let lower = text.to_ascii_lowercase();
+    for p in phrases {
+        if p.is_empty() {
+            continue;
+        }
+        let needle = p.to_ascii_lowercase();
+        let mut from = 0;
+        while let Some(rel) = lower[from..].find(&needle) {
+            let start = from + rel;
+            let end = start + p.len();
+            if !spans.iter().any(|(s, e)| start < *e && end > *s) {
+                spans.push((start, end));
+            }
+            from = end;
+        }
+    }
+    spans.sort_by_key(|s| s.0);
+
+    let mut out = Vec::new();
+    let mut cursor = 0;
+    for (start, end) in spans {
+        if start > cursor {
+            out.push((text[cursor..start].to_string(), false));
+        }
+        if end <= text.len() {
+            out.push((text[start..end].to_string(), true));
+            cursor = end;
+        }
+    }
+    if cursor < text.len() {
+        out.push((text[cursor..].to_string(), false));
+    }
+    if out.is_empty() {
+        out.push((text.to_string(), false));
+    }
+    out
+}
+
 /// Wrap known phrases in `==...==` for the editor.
 pub fn wrap_marks(text: &str, phrases: &[String]) -> String {
     let mut spans: Vec<(usize, usize)> = Vec::new();
@@ -355,5 +396,20 @@ mod tests {
         assert_eq!(cards.len(), 1);
         assert_eq!(cards[0].front, "What is 2+2?");
         assert_eq!(cards[0].back, "4");
+    }
+
+    #[test]
+    fn mark_spans_bolds_phrases() {
+        let spans = mark_spans(
+            "Attributes visible to a programmer",
+            &["visible to a programmer".into()],
+        );
+        assert_eq!(
+            spans,
+            vec![
+                ("Attributes ".into(), false),
+                ("visible to a programmer".into(), true),
+            ]
+        );
     }
 }

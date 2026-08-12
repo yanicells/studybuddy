@@ -24,7 +24,10 @@ pub enum Prompt {
 #[derive(Debug, Clone)]
 pub struct Question {
     pub card_id: CardId,
+    pub front: String,
+    pub back: String,
     pub prompt: Prompt,
+    pub cloze_side: Option<Side>,
     pub choices: Vec<String>,
     pub answer_index: usize,
     pub answer: String,
@@ -91,7 +94,10 @@ fn cloze_question(
 
     Some(Question {
         card_id: card.id,
+        front: card.front.clone(),
+        back: card.back.clone(),
         prompt: Prompt::Cloze { segments },
+        cloze_side: Some(side),
         choices,
         answer_index,
         answer: target.text.clone(),
@@ -107,9 +113,12 @@ fn full_choice(card: &Card, deck: &[Card], rng: &mut impl Rng) -> Question {
     let (choices, answer_index) = make_choices(&answer, card, deck, rng);
     Question {
         card_id: card.id,
+        front: card.front.clone(),
+        back: card.back.clone(),
         prompt: Prompt::Front {
             text: card.front.clone(),
         },
+        cloze_side: None,
         choices,
         answer_index,
         answer,
@@ -337,6 +346,8 @@ mod tests {
         assert_eq!(q.choices.len(), 4);
         assert_eq!(q.choices[q.answer_index], "mitochondria");
         assert!(q.choices.contains(&"nucleus".to_string()));
+        assert_eq!(q.front, "The mitochondria is the powerhouse of the cell");
+        assert_eq!(q.cloze_side, Some(Side::Front));
     }
 
     #[test]
