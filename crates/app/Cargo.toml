@@ -1,0 +1,16 @@
+[package]
+name = "studybuddy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+studybuddy-core.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+rand.workspace = true
+directories = "6"
+dotenvy = "0.15.7"
+gpui = "0.2.2"
+gpui-component = "0.5.1"
+rfd = "0.15"
