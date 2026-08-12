@@ -3,11 +3,12 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use gpui::{
-    div, prelude::*, px, rgb, AnyElement, Context, Entity, FocusHandle, FontWeight, SharedString,
-    Window,
+    div, prelude::*, px, relative, rgb, svg, AnyElement, Context, Entity, FocusHandle, FontWeight,
+    SharedString, Window,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::input::{Input, InputState};
+use gpui_component::Sizable;
 use rand::rng;
 use studybuddy_core::import::{self, wrap_marks};
 use studybuddy_core::quiz::{self, Prompt, Question, Segment};
@@ -16,19 +17,14 @@ use studybuddy_core::{
     Session, Side, Status, Store,
 };
 
-const CANVAS: u32 = 0xF4F6F7;
-const SIDEBAR: u32 = 0xEBEEF0;
-const CARD: u32 = 0xFFFEFB;
-const INK: u32 = 0x1C2430;
-const MUTED: u32 = 0x6A727A;
-const LINE: u32 = 0xD8DEE2;
-const ACCENT: u32 = 0x3F6F8A;
-const SELECT: u32 = 0xD9E4EA;
-const NEW: u32 = 0x4C7A9B;
-const LEARNING: u32 = 0xB0893A;
-const MASTERED: u32 = 0x5B7F62;
-const WRONG: u32 = 0xB45A4A;
-const BLANK: u32 = 0xC5D9E0;
+const PAPER: u32 = 0xFFFFFF;
+const CANVAS: u32 = 0xFFFFFF;
+const SIDEBAR: u32 = 0xFAFAFA;
+const CARD: u32 = 0xFFFFFF;
+const INK: u32 = 0x111111;
+const MUTED: u32 = 0x737373;
+const LINE: u32 = 0xE5E5E5;
+const HOVER: u32 = 0xF5F5F5;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Selection {
@@ -79,6 +75,21 @@ enum MoveKind {
     Deck(DeckId),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum StatusFilter {
+    All,
+    Only(Status),
+}
+
+impl StatusFilter {
+    fn matches(self, status: Status) -> bool {
+        match self {
+            Self::All => true,
+            Self::Only(want) => status == want,
+        }
+    }
+}
+
 struct StudyView {
     session: Session,
     current: Option<Question>,
@@ -100,6 +111,7 @@ pub struct Studybuddy {
     stats: HashMap<DeckId, DeckStats>,
     expanded: HashSet<FolderId>,
     selected: Selection,
+    filter: StatusFilter,
     overlay: Overlay,
     study: Option<StudyView>,
     notice: Option<String>,
@@ -113,6 +125,9 @@ pub struct Studybuddy {
 impl Studybuddy {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let store = Store::open(&db_path()).expect("open studybuddy database");
+        if let Err(err) = studybuddy_core::seed::sample_if_missing(&store) {
+            eprintln!("seed sample: {err}");
+        }
         let name_input = cx.new(|cx| InputState::new(window, cx).placeholder("Name"));
         let front_input = cx.new(|cx| {
             InputState::new(window, cx)
@@ -141,6 +156,7 @@ impl Studybuddy {
             stats: HashMap::new(),
             expanded: HashSet::new(),
             selected: Selection::None,
+            filter: StatusFilter::All,
             overlay: Overlay::None,
             study: None,
             notice: None,
@@ -151,12 +167,42 @@ impl Studybuddy {
             focus_handle: cx.focus_handle(),
         };
         app.reload();
-        for folder in &app.folders {
+        app.expand_to_decks();
+        app
+    }
+
+    fn expand_to_decks(&mut self) {
+        let parent_of: HashMap<FolderId, Option<FolderId>> =
+            self.folders.iter().map(|f| (f.id, f.parent_id)).collect();
+        for folder in &self.folders {
             if folder.parent_id.is_none() {
-                app.expanded.insert(folder.id);
+                self.expanded.insert(folder.id);
             }
         }
-        app
+        for deck in &self.decks {
+            let mut cur = deck.folder_id;
+            while let Some(id) = cur {
+                self.expanded.insert(id);
+                cur = parent_of.get(&id).copied().flatten();
+            }
+        }
+    }
+
+    fn select(&mut self, selected: Selection) {
+        if self.selected != selected {
+            self.filter = StatusFilter::All;
+        }
+        self.selected = selected;
+        self.reload();
+    }
+
+    fn toggle_filter(&mut self, next: StatusFilter, cx: &mut Context<Self>) {
+        self.filter = if self.filter == next && next != StatusFilter::All {
+            StatusFilter::All
+        } else {
+            next
+        };
+        cx.notify();
     }
 
     fn reload(&mut self) {
@@ -638,7 +684,7 @@ impl Studybuddy {
                             .flex_row()
                             .items_center()
                             .gap_2()
-                            .child(div().w(px(18.)).h(px(18.)).rounded_sm().bg(rgb(ACCENT)))
+                            .child(brand_mark())
                             .child(
                                 div()
                                     .text_sm()
@@ -657,6 +703,7 @@ impl Studybuddy {
                     .child(
                         Button::new("new-folder")
                             .ghost()
+                            .small()
                             .label("Folder")
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.open_name("New folder", NameKind::NewFolder, "", window, cx);
@@ -665,6 +712,7 @@ impl Studybuddy {
                     .child(
                         Button::new("new-deck")
                             .ghost()
+                            .small()
                             .label("Deck")
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.open_name("New deck", NameKind::NewDeck, "", window, cx);
@@ -721,22 +769,25 @@ impl Studybuddy {
                 .ml(px(depth as f32 * 12.))
                 .rounded_md()
                 .cursor_pointer()
-                .when(selected, |d| d.bg(rgb(SELECT)))
-                .hover(|d| d.bg(rgb(SELECT)))
+                .when(!selected, |d| d.hover(|h| h.bg(rgb(HOVER))))
+                .when(selected, |d| {
+                    d.bg(rgb(INK))
+                        .text_color(rgb(PAPER))
+                        .hover(|h| h.bg(rgb(INK)).text_color(rgb(PAPER)))
+                })
                 .on_click(cx.listener(move |this, _, _, cx| {
                     if this.expanded.contains(&id) {
                         this.expanded.remove(&id);
                     } else {
                         this.expanded.insert(id);
                     }
-                    this.selected = Selection::Folder(id);
-                    this.reload();
+                    this.select(Selection::Folder(id));
                     cx.notify();
                 }))
                 .child(
                     div()
                         .w(px(14.))
-                        .text_color(rgb(MUTED))
+                        .text_color(rgb(if selected { PAPER } else { MUTED }))
                         .text_xs()
                         .child(if expanded { "▾" } else { "▸" }),
                 )
@@ -780,11 +831,14 @@ impl Studybuddy {
             .ml(px(depth as f32 * 12. + 14.))
             .rounded_md()
             .cursor_pointer()
-            .when(selected, |d| d.bg(rgb(SELECT)))
-            .hover(|d| d.bg(rgb(SELECT)))
+            .when(!selected, |d| d.hover(|h| h.bg(rgb(HOVER))))
+            .when(selected, |d| {
+                d.bg(rgb(INK))
+                    .text_color(rgb(PAPER))
+                    .hover(|h| h.bg(rgb(INK)).text_color(rgb(PAPER)))
+            })
             .on_click(cx.listener(move |this, _, _, cx| {
-                this.selected = Selection::Deck(id);
-                this.reload();
+                this.select(Selection::Deck(id));
                 cx.notify();
             }))
             .child(div().text_sm().child(deck.name.clone()))
@@ -792,7 +846,7 @@ impl Studybuddy {
                 d.child(
                     div()
                         .text_xs()
-                        .text_color(rgb(ACCENT))
+                        .text_color(rgb(if selected { PAPER } else { MUTED }))
                         .child(due.to_string()),
                 )
             })
@@ -818,8 +872,10 @@ impl Studybuddy {
                 div()
                     .px_6()
                     .py_2()
-                    .text_sm()
-                    .text_color(rgb(ACCENT))
+                    .border_t_1()
+                    .border_color(rgb(LINE))
+                    .text_xs()
+                    .text_color(rgb(MUTED))
                     .child(msg)
             }))
     }
@@ -837,7 +893,7 @@ impl Studybuddy {
                 .unwrap_or_else(|| "Deck".into()),
         };
 
-        let mut actions = div().flex().flex_row().gap_2();
+        let mut actions = div().flex().flex_row().flex_wrap().items_center().gap_2();
         match self.selected {
             Selection::Folder(id) => {
                 let name = self
@@ -849,6 +905,7 @@ impl Studybuddy {
                         .child(
                             Button::new("rename-folder")
                                 .ghost()
+                                .small()
                                 .label("Rename")
                                 .on_click({
                                     let name = name.clone();
@@ -863,7 +920,7 @@ impl Studybuddy {
                                     })
                                 }),
                         )
-                        .child(Button::new("move-folder").ghost().label("Move").on_click(
+                        .child(Button::new("move-folder").ghost().small().label("Move").on_click(
                             cx.listener(move |this, _, _, cx| {
                                 this.overlay = Overlay::Move {
                                     kind: MoveKind::Folder(id),
@@ -874,6 +931,7 @@ impl Studybuddy {
                         .child(
                             Button::new("delete-folder")
                                 .ghost()
+                                .small()
                                 .label("Delete")
                                 .on_click(cx.listener(move |this, _, _, cx| {
                                     this.overlay = Overlay::Confirm {
@@ -905,7 +963,7 @@ impl Studybuddy {
                                     cx.listener(|this, _, window, cx| this.start_study(window, cx)),
                                 ),
                         )
-                        .child(Button::new("import").label("Import").on_click(cx.listener(
+                        .child(Button::new("import").small().label("Import").on_click(cx.listener(
                             |this, _, window, cx| {
                                 this.import_input
                                     .update(cx, |input, cx| input.set_value("", window, cx));
@@ -916,6 +974,7 @@ impl Studybuddy {
                         .child(
                             Button::new("new-card")
                                 .ghost()
+                                .small()
                                 .label("Card")
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.open_edit(None, window, cx);
@@ -924,6 +983,7 @@ impl Studybuddy {
                         .child(
                             Button::new("rename-deck")
                                 .ghost()
+                                .small()
                                 .label("Rename")
                                 .on_click({
                                     let name = name.clone();
@@ -938,7 +998,7 @@ impl Studybuddy {
                                     })
                                 }),
                         )
-                        .child(Button::new("move-deck").ghost().label("Move").on_click(
+                        .child(Button::new("move-deck").ghost().small().label("Move").on_click(
                             cx.listener(move |this, _, _, cx| {
                                 this.overlay = Overlay::Move {
                                     kind: MoveKind::Deck(id),
@@ -946,7 +1006,7 @@ impl Studybuddy {
                                 cx.notify();
                             }),
                         ))
-                        .child(Button::new("delete-deck").ghost().label("Delete").on_click(
+                        .child(Button::new("delete-deck").ghost().small().label("Delete").on_click(
                             cx.listener(move |this, _, _, cx| {
                                 this.overlay = Overlay::Confirm {
                                     title: "Delete deck?".into(),
@@ -980,7 +1040,7 @@ impl Studybuddy {
 
     fn render_content(&mut self, cx: &mut Context<Self>) -> AnyElement {
         match self.selected {
-            Selection::None => empty_state("Pick a folder or deck, or create one."),
+            Selection::None => empty_library(),
             Selection::Folder(_) => self.render_folder_contents(cx),
             Selection::Deck(_) => self.render_deck_contents(cx),
         }
@@ -1012,10 +1072,10 @@ impl Studybuddy {
                 format!("folder-card-{}", fid.0),
                 folder.name,
                 "Folder",
+                None,
                 cx.listener(move |this, _, _, cx| {
-                    this.selected = Selection::Folder(fid);
                     this.expanded.insert(fid);
-                    this.reload();
+                    this.select(Selection::Folder(fid));
                     cx.notify();
                 }),
             ));
@@ -1027,12 +1087,13 @@ impl Studybuddy {
                 format!("deck-card-{}", did.0),
                 deck.name,
                 format!(
-                    "{} due · {} new · {} learning · {} mastered",
-                    stats.due, stats.new, stats.learning, stats.mastered
+                    "{} due · {} cards",
+                    stats.due,
+                    stats.total()
                 ),
+                Some(stats),
                 cx.listener(move |this, _, _, cx| {
-                    this.selected = Selection::Deck(did);
-                    this.reload();
+                    this.select(Selection::Deck(did));
                     cx.notify();
                 }),
             ));
@@ -1041,84 +1102,101 @@ impl Studybuddy {
     }
 
     fn render_deck_contents(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let Some(deck) = self.selected_deck().cloned() else {
+        let Some(deck_id) = self.selected_deck().map(|d| d.id) else {
             return empty_state("Deck");
         };
-        let stats = self.stats.get(&deck.id).cloned().unwrap_or_default();
-        let mut col = div().flex().flex_col().gap_4();
+        let stats = self.stats.get(&deck_id).cloned().unwrap_or_default();
+        let filter = self.filter;
+        let mut col = div().flex().flex_col().gap_3();
         col = col.child(
             div()
                 .flex()
-                .flex_row()
-                .gap_2()
-                .child(chip("New", stats.new, NEW))
-                .child(chip("Learning", stats.learning, LEARNING))
-                .child(chip("Mastered", stats.mastered, MASTERED)),
+                .flex_col()
+                .gap_3()
+                .child(stacked_bar(&stats))
+                .child(self.render_filters(&stats, cx)),
         );
         if self.cards.is_empty() {
             col = col.child(empty_state("No cards yet. Import a list or add one."));
             return col.into_any_element();
         }
-        for card in self.cards.clone() {
-            let id = card.id;
-            col = col.child(
-                div()
-                    .flex()
-                    .flex_row()
-                    .items_start()
-                    .justify_between()
-                    .gap_3()
-                    .p_3()
-                    .rounded_lg()
-                    .border_1()
-                    .border_color(rgb(LINE))
-                    .bg(rgb(CARD))
-                    .child(
-                        div()
-                            .flex_1()
-                            .flex()
-                            .flex_col()
-                            .gap_1()
-                            .child(div().text_sm().child(card.front.clone()))
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .text_color(rgb(MUTED))
-                                    .child(card.back.replace('\n', " · ")),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_row()
-                            .items_center()
-                            .gap_2()
-                            .child(status_chip(card.status))
-                            .child(
-                                Button::new(SharedString::from(format!("edit-{}", id.0)))
-                                    .ghost()
-                                    .label("Edit")
-                                    .on_click(cx.listener(move |this, _, window, cx| {
-                                        this.open_edit(Some(id), window, cx);
-                                    })),
-                            )
-                            .child(
-                                Button::new(SharedString::from(format!("del-{}", id.0)))
-                                    .ghost()
-                                    .label("Delete")
-                                    .on_click(cx.listener(move |this, _, _, cx| {
-                                        this.overlay = Overlay::Confirm {
-                                            title: "Delete card?".into(),
-                                            body: "This cannot be undone.".into(),
-                                            kind: ConfirmKind::DeleteCard(id),
-                                        };
-                                        cx.notify();
-                                    })),
-                            ),
-                    ),
-            );
+        let mut shown = 0u32;
+        for card in &self.cards {
+            if !filter.matches(card.status) {
+                continue;
+            }
+            shown += 1;
+            col = col.child(note_card(card, cx));
+        }
+        if shown == 0 {
+            let label = match filter {
+                StatusFilter::All => "cards",
+                StatusFilter::Only(Status::New) => "new cards",
+                StatusFilter::Only(Status::Learning) => "learning cards",
+                StatusFilter::Only(Status::Mastered) => "mastered cards",
+            };
+            col = col.child(empty_state(&format!("No {label} in this deck.")));
         }
         col.into_any_element()
+    }
+
+    fn render_filters(&mut self, stats: &DeckStats, cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .flex_row()
+            .rounded_md()
+            .border_1()
+            .border_color(rgb(LINE))
+            .overflow_hidden()
+            .child(self.filter_seg("All", stats.total(), StatusFilter::All, true, cx))
+            .child(self.filter_seg("New", stats.new, StatusFilter::Only(Status::New), true, cx))
+            .child(self.filter_seg(
+                "Learning",
+                stats.learning,
+                StatusFilter::Only(Status::Learning),
+                true,
+                cx,
+            ))
+            .child(self.filter_seg(
+                "Mastered",
+                stats.mastered,
+                StatusFilter::Only(Status::Mastered),
+                false,
+                cx,
+            ))
+    }
+
+    fn filter_seg(
+        &mut self,
+        label: &'static str,
+        n: u32,
+        filter: StatusFilter,
+        divider: bool,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let active = self.filter == filter;
+        div()
+            .id(SharedString::from(format!("filter-{label}")))
+            .flex()
+            .flex_row()
+            .items_center()
+            .px_3()
+            .h(px(28.))
+            .cursor_pointer()
+            .when(divider, |d| d.border_r_1().border_color(rgb(LINE)))
+            .when(active, |d| d.bg(rgb(INK)).text_color(rgb(PAPER)))
+            .when(!active, |d| d.hover(|h| h.bg(rgb(HOVER))))
+            .on_click(cx.listener(move |this, _, _, cx| this.toggle_filter(filter, cx)))
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(if active {
+                        FontWeight::MEDIUM
+                    } else {
+                        FontWeight::NORMAL
+                    })
+                    .child(format!("{label} {n}")),
+            )
     }
 
     fn render_study(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1126,147 +1204,276 @@ impl Studybuddy {
             return div();
         };
         let remaining = study.session.remaining();
-        let shown = study.session.answered_count();
+        let completed = study.session.completed();
+        let total = study.session.total.max(1);
         let wave = study.session.wave();
+        let fill = completed as f32 / total as f32;
+        let hits = study
+            .current
+            .as_ref()
+            .map(|q| study.session.card_hits(q.card_id));
 
-        let mut body = div()
-            .flex_1()
+        let header = div()
+            .px_6()
+            .py_3()
             .flex()
-            .flex_col()
+            .flex_row()
             .items_center()
-            .justify_center()
-            .px_8();
-
-        if study.done {
-            body = body.child(
+            .gap_4()
+            .border_b_1()
+            .border_color(rgb(LINE))
+            .child(
+                Button::new("leave-study")
+                    .ghost()
+                    .small()
+                    .label("Leave")
+                    .on_click(cx.listener(|this, _, _, cx| this.exit_study(cx))),
+            )
+            .child(
                 div()
-                    .w(px(520.))
-                    .p_8()
-                    .rounded_xl()
-                    .bg(rgb(CARD))
-                    .border_1()
-                    .border_color(rgb(LINE))
+                    .flex_1()
                     .flex()
                     .flex_col()
-                    .gap_4()
-                    .items_center()
+                    .gap_1()
+                    .child(progress_bar(fill))
                     .child(
                         div()
-                            .text_lg()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .child("That's the set"),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
+                            .text_xs()
                             .text_color(rgb(MUTED))
-                            .child("Come back tomorrow for the ones that graduated."),
-                    )
-                    .child(
-                        Button::new("done-study")
-                            .primary()
-                            .label("Back")
-                            .on_click(cx.listener(|this, _, _, cx| this.exit_study(cx))),
+                            .child(format!(
+                                "{completed} of {total} done · wave {wave} · {remaining} left"
+                            )),
                     ),
             );
-        } else if let Some(question) = study.current.clone() {
-            let feedback = study.feedback.as_ref();
-            body = body.child(
-                div()
-                    .w(px(640.))
-                    .flex()
-                    .flex_col()
-                    .gap_5()
-                    .child(self.render_prompt(&question))
-                    .child(self.render_choices(&question, feedback, cx))
-                    .when(feedback.is_some(), |d| {
-                        let fb = feedback.unwrap();
-                        d.child(
+
+        if study.done {
+            return div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .bg(rgb(CANVAS))
+                .child(header)
+                .child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .items_center()
+                        .justify_center()
+                        .px_8()
+                        .child(
                             div()
+                                .w(px(480.))
+                                .p_8()
+                                .rounded_xl()
+                                .bg(rgb(CARD))
+                                .border_1()
+                                .border_color(rgb(LINE))
                                 .flex()
                                 .flex_col()
-                                .gap_3()
-                                .items_start()
+                                .gap_4()
+                                .items_center()
+                                .child(brand_mark())
+                                .child(
+                                    div()
+                                        .text_lg()
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .child("That's the set"),
+                                )
                                 .child(
                                     div()
                                         .text_sm()
-                                        .font_weight(FontWeight::MEDIUM)
-                                        .text_color(rgb(if fb.correct { MASTERED } else { WRONG }))
-                                        .child(if fb.correct { "Correct" } else { "Not quite" }),
+                                        .text_color(rgb(MUTED))
+                                        .child("Come back tomorrow for the ones that graduated."),
                                 )
-                                .when(!fb.correct, |d| {
-                                    d.child(
-                                        div()
-                                            .text_sm()
-                                            .text_color(rgb(MUTED))
-                                            .child(format!("Answer: {}", question.answer)),
-                                    )
-                                })
+                                .child(progress_bar(1.0))
                                 .child(
-                                    Button::new("continue")
+                                    Button::new("done-study")
                                         .primary()
-                                        .label("Continue")
+                                        .label("Back to deck")
                                         .on_click(
-                                            cx.listener(|this, _, _, cx| this.continue_study(cx)),
+                                            cx.listener(|this, _, _, cx| this.exit_study(cx)),
                                         ),
                                 ),
+                        ),
+                );
+        }
+
+        let question = study.current.clone();
+        let feedback = study.feedback.as_ref();
+        let revealed = feedback.is_some();
+
+        let mut inner = div().w(px(640.)).flex().flex_col().gap_5();
+        if let Some(question) = question.as_ref() {
+            inner = inner
+                .child(self.render_prompt(question, revealed, hits))
+                .child(self.render_choices(question, feedback, cx));
+        }
+
+        let scroll = div()
+            .id("study-scroll")
+            .flex_1()
+            .overflow_y_scroll()
+            .child(
+                div()
+                    .w_full()
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .px_8()
+                    .py_6()
+                    .child(inner),
+            );
+
+        let wrong = feedback.map(|fb| !fb.correct).unwrap_or(false);
+        let answer_hint = question
+            .as_ref()
+            .map(|q| q.answer.clone())
+            .unwrap_or_default();
+        let footer = div()
+            .px_6()
+            .py_3()
+            .border_t_1()
+            .border_color(rgb(LINE))
+            .flex()
+            .flex_row()
+            .items_center()
+            .justify_between()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(rgb(if feedback.is_some() { INK } else { MUTED }))
+                            .child(match feedback {
+                                Some(fb) if fb.correct => "Correct".to_string(),
+                                Some(_) => "Not quite".to_string(),
+                                None => "Press 1–4 to answer".to_string(),
+                            }),
+                    )
+                    .when(wrong, |d| {
+                        d.child(
+                            div()
+                                .text_sm()
+                                .text_color(rgb(MUTED))
+                                .child(format!("Answer: {answer_hint}")),
                         )
                     }),
-            );
-        }
+            )
+            .child(div().when(revealed, |d| {
+                d.child(
+                    Button::new("continue")
+                        .primary()
+                        .label("Continue")
+                        .on_click(cx.listener(|this, _, _, cx| this.continue_study(cx))),
+                )
+            }));
 
         div()
             .size_full()
             .flex()
             .flex_col()
             .bg(rgb(CANVAS))
-            .child(
-                div()
-                    .px_6()
-                    .py_3()
-                    .flex()
-                    .flex_row()
-                    .items_center()
-                    .justify_between()
-                    .border_b_1()
-                    .border_color(rgb(LINE))
-                    .child(
-                        Button::new("leave-study")
-                            .ghost()
-                            .label("Leave")
-                            .on_click(cx.listener(|this, _, _, cx| this.exit_study(cx))),
-                    )
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(MUTED))
-                            .child(format!("Wave {wave} · {shown} seen · {remaining} left")),
-                    ),
-            )
-            .child(body)
+            .child(header)
+            .child(scroll)
+            .child(footer)
     }
 
-    fn render_prompt(&self, question: &Question) -> impl IntoElement {
-        let inner = match &question.prompt {
-            Prompt::Front { text } => div().text_lg().child(text.clone()).into_any_element(),
-            Prompt::Cloze { segments } => {
-                let mut line = div().flex().flex_row().flex_wrap().items_center().gap_1();
-                for segment in segments {
-                    line = match segment {
-                        Segment::Text(t) => line.child(div().text_lg().child(t.clone())),
-                        Segment::Blank { text, target } => line.child(blank_pill(text, *target)),
-                    };
-                }
-                line.into_any_element()
-            }
+    fn render_prompt(
+        &self,
+        question: &Question,
+        revealed: bool,
+        hits: Option<(u32, u32)>,
+    ) -> impl IntoElement {
+        let cloze = match &question.prompt {
+            Prompt::Cloze { segments } => Some(segments.as_slice()),
+            Prompt::Front { .. } => None,
         };
+        let cloze_on_front = question.cloze_side == Some(Side::Front);
+        let cloze_on_back = question.cloze_side == Some(Side::Back);
+
+        let question_body = if cloze_on_front {
+            if let Some(segments) = cloze {
+                render_cloze(segments, revealed, false)
+            } else {
+                prompt_text(&question.front)
+            }
+        } else {
+            prompt_text(&question.front)
+        };
+
+        let answer_body = if cloze_on_back {
+            if let Some(segments) = cloze {
+                render_cloze(segments, revealed, true)
+            } else {
+                marked_passage(&question.back, &[], true)
+            }
+        } else if revealed && !question.back.trim().is_empty() {
+            marked_passage(&question.back, &[], true)
+        } else if cloze.is_none() && !revealed {
+            div()
+                .text_sm()
+                .text_color(rgb(MUTED))
+                .child("Pick the matching answer.")
+                .into_any_element()
+        } else {
+            div().into_any_element()
+        };
+
+        let show_answer = cloze_on_back
+            || (revealed && !question.back.trim().is_empty())
+            || cloze.is_none();
+
         div()
             .p_6()
             .rounded_xl()
             .bg(rgb(CARD))
             .border_1()
             .border_color(rgb(LINE))
-            .child(inner)
+            .flex()
+            .flex_col()
+            .gap_4()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .child(section_label("Question"))
+                    .child(question_body),
+            )
+            .when(show_answer, |d| {
+                d.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_2()
+                        .child(section_label("Answer"))
+                        .child(answer_body),
+                )
+            })
+            .when_some(hits, |d, (have, need)| {
+                d.child(
+                    div()
+                        .pt_2()
+                        .border_t_1()
+                        .border_color(rgb(LINE))
+                        .flex()
+                        .flex_row()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            div()
+                                .text_xs()
+                                .text_color(rgb(MUTED))
+                                .child(format!("This card · {have} of {need}")),
+                        )
+                        .child(hit_pips(have, need)),
+                )
+            })
     }
 
     fn render_choices(
@@ -1279,13 +1486,25 @@ impl Studybuddy {
         for (i, choice) in question.choices.iter().enumerate() {
             let mut bg = CARD;
             let mut border = LINE;
+            let mut fg = INK;
+            let mut badge_bg = PAPER;
+            let mut badge_fg = MUTED;
+            let mut badge_border = LINE;
             if let Some(fb) = feedback {
                 if i == question.answer_index {
-                    bg = 0xE7F0EA;
-                    border = MASTERED;
+                    bg = INK;
+                    border = INK;
+                    fg = PAPER;
+                    badge_bg = PAPER;
+                    badge_fg = INK;
+                    badge_border = PAPER;
                 } else if i == fb.picked {
-                    bg = 0xF6E8E5;
-                    border = WRONG;
+                    bg = PAPER;
+                    border = INK;
+                    fg = INK;
+                    badge_bg = PAPER;
+                    badge_fg = INK;
+                    badge_border = INK;
                 }
             }
             col = col.child(
@@ -1293,7 +1512,7 @@ impl Studybuddy {
                     .id(SharedString::from(format!("choice-{i}")))
                     .flex()
                     .flex_row()
-                    .items_center()
+                    .items_start()
                     .gap_3()
                     .px_4()
                     .py_3()
@@ -1301,8 +1520,9 @@ impl Studybuddy {
                     .border_1()
                     .border_color(rgb(border))
                     .bg(rgb(bg))
+                    .text_color(rgb(fg))
                     .cursor_pointer()
-                    .hover(|d| d.border_color(rgb(ACCENT)))
+                    .when(feedback.is_none(), |d| d.hover(|h| h.bg(rgb(HOVER))))
                     .on_click(cx.listener(move |this, _, _, cx| this.pick(i, cx)))
                     .child(
                         div()
@@ -1310,15 +1530,17 @@ impl Studybuddy {
                             .h(px(22.))
                             .rounded_full()
                             .border_1()
-                            .border_color(rgb(LINE))
+                            .border_color(rgb(badge_border))
+                            .bg(rgb(badge_bg))
                             .flex()
                             .items_center()
                             .justify_center()
+                            .flex_shrink_0()
                             .text_xs()
-                            .text_color(rgb(MUTED))
+                            .text_color(rgb(badge_fg))
                             .child((i + 1).to_string()),
                     )
-                    .child(div().text_sm().child(choice.clone())),
+                    .child(choice_lines(choice)),
             );
         }
         col
@@ -1535,7 +1757,7 @@ fn move_row(
         .py_2()
         .rounded_md()
         .cursor_pointer()
-        .hover(|d| d.bg(rgb(SELECT)))
+        .hover(|d| d.bg(rgb(HOVER)))
         .on_click(cx.listener(move |this, _, _, cx| this.move_to(folder_id, cx)))
         .child(div().text_sm().child(label))
 }
@@ -1562,6 +1784,29 @@ fn modal(title: impl Into<SharedString>, body: impl IntoElement) -> AnyElement {
         .into_any_element()
 }
 
+fn empty_library() -> AnyElement {
+    div()
+        .pt_16()
+        .flex()
+        .flex_col()
+        .items_center()
+        .gap_3()
+        .child(brand_mark())
+        .child(
+            div()
+                .text_sm()
+                .font_weight(FontWeight::SEMIBOLD)
+                .child("Studybuddy"),
+        )
+        .child(
+            div()
+                .text_sm()
+                .text_color(rgb(MUTED))
+                .child("Pick a folder or deck, or create one."),
+        )
+        .into_any_element()
+}
+
 fn empty_state(text: &str) -> AnyElement {
     div()
         .pt_8()
@@ -1575,6 +1820,7 @@ fn row_card(
     id: impl Into<SharedString>,
     title: impl Into<String>,
     subtitle: impl Into<String>,
+    stats: Option<DeckStats>,
     on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
 ) -> impl IntoElement {
     div()
@@ -1585,17 +1831,18 @@ fn row_card(
         .border_color(rgb(LINE))
         .bg(rgb(CARD))
         .cursor_pointer()
-        .hover(|d| d.border_color(rgb(ACCENT)))
+        .hover(|d| d.bg(rgb(HOVER)))
         .on_click(on_click)
         .flex()
         .flex_col()
-        .gap_1()
+        .gap_2()
         .child(
             div()
                 .text_sm()
                 .font_weight(FontWeight::MEDIUM)
                 .child(title.into()),
         )
+        .when_some(stats, |d, stats| d.child(stacked_bar(&stats)))
         .child(
             div()
                 .text_xs()
@@ -1604,67 +1851,319 @@ fn row_card(
         )
 }
 
-fn chip(label: &str, n: u32, color: u32) -> impl IntoElement {
+fn text_action(
+    id: impl Into<SharedString>,
+    label: &'static str,
+    on_click: impl Fn(&gpui::ClickEvent, &mut Window, &mut gpui::App) + 'static,
+) -> impl IntoElement {
     div()
-        .flex()
-        .flex_row()
-        .items_center()
-        .gap_2()
-        .px_3()
+        .id(id.into())
+        .px_2()
         .py_1()
         .rounded_md()
-        .bg(rgb(CARD))
+        .text_xs()
+        .text_color(rgb(MUTED))
+        .cursor_pointer()
+        .hover(|d| d.bg(rgb(PAPER)).text_color(rgb(INK)))
+        .on_click(on_click)
+        .child(label)
+}
+
+fn note_card(card: &Card, cx: &mut Context<Studybuddy>) -> impl IntoElement {
+    let id = card.id;
+    let front = phrases(card, Side::Front);
+    let back = phrases(card, Side::Back);
+    div()
+        .id(SharedString::from(format!("card-{}", id.0)))
+        .flex()
+        .flex_col()
+        .gap_3()
+        .p_4()
+        .rounded_lg()
         .border_1()
         .border_color(rgb(LINE))
-        .child(div().w(px(8.)).h(px(8.)).rounded_full().bg(rgb(color)))
+        .bg(rgb(CARD))
+        .hover(|d| d.border_color(rgb(INK)))
         .child(
             div()
-                .text_xs()
-                .text_color(rgb(MUTED))
-                .child(format!("{label} {n}")),
+                .text_sm()
+                .font_weight(FontWeight::MEDIUM)
+                .child(marked_passage(&card.front, &front, false)),
+        )
+        .when(!card.back.trim().is_empty(), |d| {
+            d.child(
+                div()
+                    .pt_2()
+                    .border_t_1()
+                    .border_color(rgb(LINE))
+                    .child(marked_passage(&card.back, &back, true)),
+            )
+        })
+        .child(
+            div()
+                .flex()
+                .flex_row()
+                .items_center()
+                .justify_between()
+                .child(status_chip(card.status))
+                .child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_1()
+                        .child(text_action(
+                            format!("edit-{}", id.0),
+                            "Edit",
+                            cx.listener(move |this, _, window, cx| {
+                                this.open_edit(Some(id), window, cx);
+                            }),
+                        ))
+                        .child(text_action(
+                            format!("del-{}", id.0),
+                            "Delete",
+                            cx.listener(move |this, _, _, cx| {
+                                this.overlay = Overlay::Confirm {
+                                    title: "Delete card?".into(),
+                                    body: "This cannot be undone.".into(),
+                                    kind: ConfirmKind::DeleteCard(id),
+                                };
+                                cx.notify();
+                            }),
+                        )),
+                ),
         )
 }
 
 fn status_chip(status: Status) -> impl IntoElement {
-    let (label, color) = match status {
-        Status::New => ("New", NEW),
-        Status::Learning => ("Learning", LEARNING),
-        Status::Mastered => ("Mastered", MASTERED),
+    let (label, bg, border, fg) = match status {
+        Status::New => ("New", PAPER, LINE, MUTED),
+        Status::Learning => ("Learning", PAPER, INK, INK),
+        Status::Mastered => ("Mastered", INK, INK, PAPER),
     };
     div()
         .px_2()
         .py_1()
         .rounded_md()
-        .bg(rgb(color))
-        .text_color(rgb(0xFFFFFF))
+        .bg(rgb(bg))
+        .border_1()
+        .border_color(rgb(border))
+        .text_color(rgb(fg))
         .text_xs()
         .child(label)
 }
 
-fn blank_pill(_text: &str, target: bool) -> AnyElement {
-    if target {
-        div()
-            .px_3()
-            .py_1()
-            .min_w(px(72.))
-            .rounded_md()
-            .bg(rgb(BLANK))
-            .border_b_2()
-            .border_color(rgb(ACCENT))
-            .text_lg()
-            .text_color(rgb(ACCENT))
-            .child("    ")
-            .into_any_element()
-    } else {
-        div()
-            .px_3()
-            .py_1()
-            .min_w(px(48.))
-            .rounded_md()
-            .bg(rgb(0xE7ECEE))
-            .text_lg()
-            .text_color(rgb(MUTED))
-            .child("    ")
-            .into_any_element()
+fn brand_mark() -> impl IntoElement {
+    div()
+        .w(px(24.))
+        .h(px(24.))
+        .flex_shrink_0()
+        .child(
+            svg()
+                .path("icon.svg")
+                .size_full()
+                .text_color(rgb(INK)),
+        )
+}
+
+fn section_label(text: &str) -> impl IntoElement {
+    div()
+        .text_xs()
+        .font_weight(FontWeight::MEDIUM)
+        .text_color(rgb(MUTED))
+        .child(text.to_string())
+}
+
+fn progress_bar(fill: f32) -> impl IntoElement {
+    div()
+        .h(px(4.))
+        .w_full()
+        .rounded_full()
+        .bg(rgb(LINE))
+        .overflow_hidden()
+        .child(
+            div()
+                .h_full()
+                .w(relative(fill.clamp(0., 1.)))
+                .rounded_full()
+                .bg(rgb(INK)),
+        )
+}
+
+fn stacked_bar(stats: &DeckStats) -> impl IntoElement {
+    let total = stats.total();
+    if total == 0 {
+        return div()
+            .h(px(6.))
+            .w_full()
+            .rounded_full()
+            .bg(rgb(LINE))
+            .into_any_element();
     }
+    let total = total as f32;
+    div()
+        .h(px(6.))
+        .w_full()
+        .rounded_full()
+        .bg(rgb(HOVER))
+        .overflow_hidden()
+        .flex()
+        .flex_row()
+        .child(
+            div()
+                .h_full()
+                .w(relative(stats.new as f32 / total))
+                .bg(rgb(LINE)),
+        )
+        .child(
+            div()
+                .h_full()
+                .w(relative(stats.learning as f32 / total))
+                .bg(rgb(MUTED)),
+        )
+        .child(
+            div()
+                .h_full()
+                .w(relative(stats.mastered as f32 / total))
+                .bg(rgb(INK)),
+        )
+        .into_any_element()
+}
+
+fn hit_pips(have: u32, need: u32) -> impl IntoElement {
+    let mut row = div().flex().flex_row().gap_1();
+    for i in 0..need {
+        row = row.child(
+            div()
+                .w(px(16.))
+                .h(px(4.))
+                .rounded_full()
+                .bg(rgb(if i < have { INK } else { LINE })),
+        );
+    }
+    row
+}
+
+fn phrases(card: &Card, side: Side) -> Vec<String> {
+    card.highlights
+        .iter()
+        .filter(|h| h.side == side)
+        .map(|h| h.text.clone())
+        .collect()
+}
+
+fn prompt_text(text: &str) -> AnyElement {
+    div()
+        .text_lg()
+        .font_weight(FontWeight::MEDIUM)
+        .child(text.to_string())
+        .into_any_element()
+}
+
+fn marked_passage(text: &str, phrases: &[String], bullets: bool) -> AnyElement {
+    let mut col = div().flex().flex_col().gap_1();
+    for line in text.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let spans = import::mark_spans(line, phrases);
+        let mut row = div().flex().flex_row().items_start().gap_2();
+        if bullets {
+            row = row.child(div().text_sm().text_color(rgb(MUTED)).child("•"));
+        }
+        let mut body = div().flex_1().flex().flex_row().flex_wrap();
+        for (chunk, hi) in spans {
+            body = body.child(
+                div()
+                    .text_sm()
+                    .when(hi, |d| d.font_weight(FontWeight::SEMIBOLD).italic())
+                    .child(chunk),
+            );
+        }
+        col = col.child(row.child(body));
+    }
+    col.into_any_element()
+}
+
+fn render_cloze(segments: &[Segment], revealed: bool, bullets: bool) -> AnyElement {
+    let mut col = div().flex().flex_col().gap_2();
+    for line in cloze_lines(segments) {
+        let mut row = div().flex().flex_row().flex_wrap().items_end().gap_1();
+        if bullets {
+            row = row.child(div().text_sm().text_color(rgb(MUTED)).child("•"));
+        }
+        for seg in line {
+            match seg {
+                Segment::Text(t) => {
+                    for word in t.split_inclusive(' ') {
+                        if word.is_empty() {
+                            continue;
+                        }
+                        row = row.child(div().text_sm().child(word.to_string()));
+                    }
+                }
+                Segment::Blank { text, target } => {
+                    row = row.child(blank_slot(&text, target, revealed));
+                }
+            }
+        }
+        col = col.child(row);
+    }
+    col.into_any_element()
+}
+
+fn cloze_lines(segments: &[Segment]) -> Vec<Vec<Segment>> {
+    let mut lines: Vec<Vec<Segment>> = vec![Vec::new()];
+    for seg in segments {
+        match seg {
+            Segment::Text(t) => {
+                let parts: Vec<&str> = t.split('\n').collect();
+                for (i, part) in parts.iter().enumerate() {
+                    if !part.is_empty() {
+                        lines
+                            .last_mut()
+                            .unwrap()
+                            .push(Segment::Text(part.to_string()));
+                    }
+                    if i + 1 < parts.len() {
+                        lines.push(Vec::new());
+                    }
+                }
+            }
+            other => lines.last_mut().unwrap().push(other.clone()),
+        }
+    }
+    lines.retain(|line| !line.is_empty());
+    lines
+}
+
+fn blank_slot(text: &str, target: bool, revealed: bool) -> AnyElement {
+    if revealed {
+        return div()
+            .text_sm()
+            .font_weight(if target {
+                FontWeight::SEMIBOLD
+            } else {
+                FontWeight::NORMAL
+            })
+            .italic()
+            .when(target, |d| d.underline())
+            .child(text.to_string())
+            .into_any_element();
+    }
+    let width = (text.chars().count().max(6) as f32 * 7.5).clamp(48.0, 220.0);
+    div()
+        .h(px(16.))
+        .w(px(width))
+        .mb(px(2.))
+        .border_b_2()
+        .border_color(rgb(if target { INK } else { MUTED }))
+        .into_any_element()
+}
+
+fn choice_lines(text: &str) -> impl IntoElement {
+    let mut col = div().flex().flex_col().gap_1().flex_1();
+    for line in text.lines() {
+        col = col.child(div().text_sm().child(line.to_string()));
+    }
+    col
 }
