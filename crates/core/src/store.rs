@@ -484,6 +484,8 @@ CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::import;
+
     #[test]
     fn folder_nest_move_delete() {
         let store = Store::open_in_memory().unwrap();
@@ -496,6 +498,21 @@ mod tests {
         assert_eq!(store.list_folders().unwrap().len(), 2);
         store.delete_folder(root.id).unwrap();
         assert_eq!(store.list_folders().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn import_and_stats() {
+        let store = Store::open_in_memory().unwrap();
+        let deck = store.create_deck(None, "Cells").unwrap();
+        let cards = import::parse(
+            "The ==mitochondria== is the powerhouse of the cell\n- mitochondria\n\nNucleus\n- control center\n",
+        );
+        let n = store.import_cards(deck.id, &cards).unwrap();
+        assert_eq!(n, 2);
+        let stats = store.deck_stats(Utc::now()).unwrap();
+        let s = stats.get(&deck.id).unwrap();
+        assert_eq!(s.new, 2);
+        assert_eq!(s.due, 2);
     }
 
     #[test]
