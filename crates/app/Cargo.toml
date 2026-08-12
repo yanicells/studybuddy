@@ -14,3 +14,6 @@ dotenvy = "0.15.7"
 gpui = "0.2.2"
 gpui-component = "0.5.1"
 rfd = "0.15"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.26"
