@@ -1,5 +1,6 @@
 pub mod import;
 pub mod model;
+pub mod openai;
 pub mod quiz;
 pub mod session;
 pub mod srs;
