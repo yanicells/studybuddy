@@ -338,7 +338,11 @@ summary {
   text-align: center;
 }
 
-.tree-row__menu {
+.tree-row > .tree-row__menu {
+  grid-row: 1;
+  grid-column: -1;
+  justify-self: end;
+  align-self: center;
   position: absolute;
   top: 50%;
   right: 0.15rem;
@@ -346,13 +350,13 @@ summary {
   transform: translateY(-50%);
 }
 
-.tree-row__menu summary {
+.tree-row > .tree-row__menu summary {
   width: 24px;
   height: 24px;
   border-radius: 6px;
 }
 
-.tree-row__menu[open] > div {
+.tree-row > .tree-row__menu[open] > div {
   z-index: 30;
 }
 
@@ -363,13 +367,13 @@ summary {
     padding-right: 1.85rem;
   }
 
-  .tree-row__menu summary {
+  .tree-row > .tree-row__menu summary {
     opacity: 0;
   }
 
-  .tree-row:hover .tree-row__menu summary,
-  .tree-row:focus-within .tree-row__menu summary,
-  .tree-row__menu[open] summary {
+  .tree-row:hover > .tree-row__menu summary,
+  .tree-row:focus-within > .tree-row__menu summary,
+  .tree-row > .tree-row__menu[open] summary {
     opacity: 1;
   }
 }
@@ -1451,7 +1455,7 @@ summary {
     height: 44px;
   }
 
-  .tree-row__menu summary {
+  .tree-row > .tree-row__menu summary {
     width: 32px;
     height: 32px;
   }
