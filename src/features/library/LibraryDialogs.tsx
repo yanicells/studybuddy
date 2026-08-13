@@ -194,16 +194,22 @@ function LibraryDialogContent({
   }
 
   if (dialog.kind === 'name') {
-    const title = `${dialog.mode === 'create' ? 'New' : 'Rename'} ${dialog.entity}`
+    const creating = dialog.mode === 'create'
+    const parentName =
+      dialog.parentId === null
+        ? 'Library'
+        : library.folders.find((folder) => folder.id === dialog.parentId)?.name ?? 'Library'
+    const title = `${creating ? 'New' : 'Rename'} ${dialog.entity}`
+    const description = creating ? `This ${dialog.entity} will be added to ${parentName}.` : undefined
     return (
-      <Dialog title={title} onClose={onClose}>
+      <Dialog title={title} description={description} onClose={onClose}>
         <form className="dialog-form" onSubmit={submitName}>
           <label>
             <span>Name</span>
             <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
           </label>
           <DialogError error={error} />
-          <DialogActions pending={pending} onClose={onClose} action="Save" />
+          <DialogActions pending={pending} onClose={onClose} action={creating ? `Create ${dialog.entity}` : 'Save'} />
         </form>
       </Dialog>
     )

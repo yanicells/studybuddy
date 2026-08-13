@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, Folder, Layers3, Pencil, Trash2 } from 'lucide-react'
+import { ArrowRight, Folder, FolderPlus, Layers3, Pencil, Trash2 } from 'lucide-react'
 
 import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
@@ -7,7 +7,7 @@ import { StackedProgress } from '../../components/ProgressBars'
 import { phrasesForSide } from '../../core/quiz'
 import { descendantDeckIds, rollupStats } from '../../core/stats'
 import { EMPTY_STATS, type Card, type DeckStats, type LibrarySnapshot, type Status } from '../../core/types'
-import type { LibraryDialog, Selection, StatusFilter } from './library.types'
+import { createNameDialog, type LibraryDialog, type Selection, type StatusFilter } from './library.types'
 
 interface LibraryContentProps {
   library: LibrarySnapshot
@@ -57,7 +57,7 @@ function LibraryHome({ library, onSelect }: LibraryContentProps) {
         <EmptyState
           icon={<Folder />}
           title="Nothing here yet"
-          body="Create a folder or deck in the library to start."
+          body="Use Folder or Deck above to add something to the library."
         />
       ) : (
         <div className="folder-grid" aria-label="Folders and decks">
@@ -131,7 +131,7 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
   const decks = library.decks.filter((deck) => deck.folderId === selection.id)
 
   if (folders.length === 0 && decks.length === 0) {
-    return <EmptyState icon={<Folder />} title="This folder is empty" body="Add a folder or deck from the toolbar." />
+    return <EmptyState icon={<Folder />} title="This folder is empty" body="Use Folder or Deck above to add something here." />
   }
 
   return (
@@ -300,6 +300,38 @@ function EmptyState({ icon, title, body }: Readonly<{ icon: ReactNode; title: st
       <h2>{title}</h2>
       <p>{body}</p>
     </div>
+  )
+}
+
+export function CreatePlaceButtons({
+  parentId,
+  className,
+  onDialog,
+}: Readonly<{
+  parentId: number | null
+  className?: string
+  onDialog: (dialog: LibraryDialog) => void
+}>) {
+  return (
+    <>
+      <Button
+        className={className}
+        variant="ghost"
+        size="small"
+        icon={<FolderPlus size={16} />}
+        onClick={() => onDialog(createNameDialog('folder', parentId))}
+      >
+        Folder
+      </Button>
+      <Button
+        className={className}
+        size="small"
+        icon={<Layers3 size={16} />}
+        onClick={() => onDialog(createNameDialog('deck', parentId))}
+      >
+        Deck
+      </Button>
+    </>
   )
 }
 

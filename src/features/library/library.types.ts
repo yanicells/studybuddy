@@ -27,3 +27,17 @@ export type LibraryDialog =
   | { kind: 'import'; deckId: number | null; folderId: number | null }
   | { kind: 'card'; deckId: number; card: Card | null }
   | null
+
+export function createNameDialog(
+  entity: 'folder' | 'deck',
+  parentId: number | null,
+): Extract<LibraryDialog, { kind: 'name' }> {
+  return {
+    kind: 'name',
+    entity,
+    mode: 'create',
+    id: null,
+    parentId,
+    initialName: '',
+  }
+}
