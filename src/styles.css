@@ -739,22 +739,36 @@ summary {
   gap: 0.4rem;
 }
 
-.card-text p,
-.card-text ul {
+.card-text p {
   margin: 0;
 }
 
-.card-text ul {
-  padding-left: 1.15rem;
-  list-style: disc;
+.card-text ul,
+.cloze-passage ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.38rem;
 }
 
-.card-text li + li {
-  margin-top: 0.28rem;
+.card-text li,
+.cloze-passage li {
+  position: relative;
+  padding-left: 1.05rem;
 }
 
-.card-text li::marker {
-  color: var(--faint);
+.card-text li::before,
+.cloze-passage li::before {
+  content: '';
+  position: absolute;
+  left: 0.12rem;
+  top: 0.55em;
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: var(--ink);
+  opacity: 0.55;
 }
 
 .note-card strong,
@@ -1099,7 +1113,8 @@ summary {
   line-height: inherit;
 }
 
-.cloze-passage p {
+.cloze-passage p,
+.cloze-passage li {
   margin: 0;
   font-size: clamp(1.05rem, 2.2vw, 1.3rem);
   font-weight: 500;

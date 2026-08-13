@@ -48,6 +48,17 @@ describe('study queue', () => {
     expect(queue.map((item) => item.id)).toEqual([2])
   })
 
+  it('falls back to upcoming mastered cards when nothing is due', () => {
+    const queue = buildStudyQueue(
+      [
+        card(1, 'mastered', { dueAt: '2026-08-20T12:00:00.000Z' }),
+        card(2, 'mastered', { dueAt: '2026-08-18T12:00:00.000Z' }),
+      ],
+      NOW,
+    )
+    expect(queue.map((item) => item.id)).toEqual([2, 1])
+  })
+
   it('caps new cards so a session cannot dump the whole deck', () => {
     const cards = Array.from({ length: NEW_CARD_LIMIT + 8 }, (_, index) => card(index + 1, 'new'))
     const queue = buildStudyQueue([card(100, 'learning'), ...cards], NOW)

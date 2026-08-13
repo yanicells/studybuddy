@@ -70,7 +70,7 @@ export interface TextSegment {
 export interface BlankSegment {
   kind: 'blank'
   text: string
-  target: boolean
+  step: number
 }
 
 export type Segment = TextSegment | BlankSegment
@@ -79,15 +79,19 @@ export type Prompt =
   | { kind: 'cloze'; segments: Segment[] }
   | { kind: 'front'; text: string }
 
+export interface QuestionStep {
+  answer: string
+  choices: string[]
+  answerIndex: number
+}
+
 export interface Question {
   cardId: number
   front: string
   back: string
   prompt: Prompt
   clozeSide: Side | null
-  choices: string[]
-  answerIndex: number
-  answer: string
+  steps: QuestionStep[]
 }
 
 export const EMPTY_STATS: DeckStats = {
