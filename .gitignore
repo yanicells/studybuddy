@@ -1,6 +1,17 @@
 /target
 **/*.rs.bk
 .env
+.env.*
+!.env.example
 .DS_Store
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
+/node_modules
+/.output
+/.tanstack
+/dist
+/.tmp
+/playwright-report
+/test-results
