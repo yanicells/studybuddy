@@ -70,20 +70,28 @@ function FolderBranch({
 
   return (
     <div>
-      <button
-        type="button"
+      <div
         className={`tree-row ${selected ? 'tree-row--selected' : ''}`}
         style={{ '--tree-depth': depth } as React.CSSProperties}
-        aria-expanded={open}
-        onClick={() => {
-          onToggleFolder(folder.id)
-          onSelect({ kind: 'folder', id: folder.id })
-        }}
       >
-        <ChevronRight className={`tree-row__chevron ${open ? 'is-open' : ''}`} size={15} />
-        <Folder size={16} />
-        <span>{folder.name}</span>
-      </button>
+        <button
+          type="button"
+          className="tree-row__toggle"
+          aria-expanded={open}
+          aria-label={`${open ? 'Collapse' : 'Expand'} ${folder.name}`}
+          onClick={() => onToggleFolder(folder.id)}
+        >
+          <ChevronRight className={`tree-row__chevron ${open ? 'is-open' : ''}`} size={15} />
+        </button>
+        <button
+          type="button"
+          className="tree-row__label"
+          onClick={() => onSelect({ kind: 'folder', id: folder.id })}
+        >
+          <Folder size={16} />
+          <span>{folder.name}</span>
+        </button>
+      </div>
       {open ? (
         <div>
           {childFolders.map((child) => (

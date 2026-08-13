@@ -248,7 +248,7 @@ summary {
   width: 100%;
   min-height: 34px;
   display: grid;
-  grid-template-columns: 16px 16px minmax(0, 1fr) auto;
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 0.4rem;
   margin: 1px 0;
@@ -263,7 +263,12 @@ summary {
   cursor: pointer;
 }
 
-.tree-row > span:not(.tree-row__count):not(.tree-row__deck-spacer) {
+.tree-row--deck {
+  grid-template-columns: 16px 16px minmax(0, 1fr) auto;
+}
+
+.tree-row > span:not(.tree-row__count):not(.tree-row__deck-spacer),
+.tree-row__label > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -279,6 +284,31 @@ summary {
   background: var(--surface);
   color: var(--ink);
   box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tree-row__toggle,
+.tree-row__label {
+  min-width: 0;
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tree-row__toggle {
+  display: grid;
+  place-items: center;
+}
+
+.tree-row__label {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.4rem;
+  text-align: left;
 }
 
 .tree-row__chevron {
