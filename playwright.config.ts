@@ -4,6 +4,7 @@ export default defineConfig({
   testDir: './tests/e2e',
   outputDir: '.tmp/playwright-results',
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: 'list',
   use: {
@@ -11,13 +12,21 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'STUDYBUDDY_DB_PATH=.tmp/e2e-studybuddy.db pnpm dev --host 127.0.0.1',
+    command: 'node scripts/e2e-server.mjs',
     url: 'http://127.0.0.1:3000',
     reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [
-    { name: 'desktop-chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'mobile-chromium', use: { ...devices['iPhone 15 Pro'] } },
+    {
+      name: 'desktop-chromium',
+      testMatch: /desktop\.spec\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'mobile-chromium',
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices['Pixel 7'] },
+    },
   ],
 })
