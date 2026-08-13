@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   descendantDeckIds,
+  folderPath,
   highestDueDeck,
   reviewedToday,
   rollupStats,
@@ -54,6 +55,9 @@ describe('study stats', () => {
       study: { due: 13, reviewedToday: 0, streak: 0 },
     }
     expect(descendantDeckIds(library, 1)).toEqual([10])
+    expect(folderPath(library.folders, 2)).toEqual([2, 1])
+    expect(folderPath(library.folders, 1)).toEqual([1])
+    expect(folderPath(library.folders, null)).toEqual([])
     expect(rollupStats(library, descendantDeckIds(library, 1))).toEqual({
       new: 2,
       learning: 1,
