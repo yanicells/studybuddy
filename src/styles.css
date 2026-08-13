@@ -236,16 +236,10 @@ summary {
   margin-left: auto;
 }
 
-.rail-create {
-  display: flex;
-  gap: 0.2rem;
-  padding: 0 0.65rem 0.5rem 0.75rem;
-}
-
 .library-tree {
   flex: 1;
   overflow-y: auto;
-  padding: 0.15rem 0.55rem 1rem 0.65rem;
+  padding: 0.4rem 0.55rem 1rem 0.65rem;
   scrollbar-width: thin;
 }
 
@@ -363,6 +357,12 @@ summary {
 
 .header-actions__narrow {
   display: none;
+}
+
+@media (min-width: 761px) {
+  .actions-menu--mobile-only {
+    display: none;
+  }
 }
 
 .actions-menu {

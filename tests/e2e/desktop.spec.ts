@@ -11,7 +11,7 @@ test('supports the complete library workflow', async ({ page }) => {
   await expect(page.getByText(/due today/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Folder', exact: true }).click()
-  await fillDialog(page, 'New folder', { Name: 'E2E Folder' }, 'Save')
+  await fillDialog(page, 'New folder', { Name: 'E2E Folder' }, 'Create folder')
   await expect(page.getByRole('heading', { name: 'E2E Folder' })).toBeVisible()
 
   await chooseMore(page, 'Rename')
@@ -22,7 +22,7 @@ test('supports the complete library workflow', async ({ page }) => {
   await page.getByRole('dialog', { name: 'Move to' }).getByRole('button', { name: 'Library' }).click()
 
   await page.getByRole('button', { name: 'Deck', exact: true }).click()
-  await fillDialog(page, 'New deck', { Name: 'E2E Deck' }, 'Save')
+  await fillDialog(page, 'New deck', { Name: 'E2E Deck' }, 'Create deck')
   await expect(page.getByRole('heading', { name: 'E2E Deck' })).toBeVisible()
   await expect(page.getByText('No cards yet')).toBeVisible()
 
