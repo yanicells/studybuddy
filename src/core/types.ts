@@ -1,0 +1,103 @@
+export type Status = 'new' | 'learning' | 'mastered'
+export type Side = 'front' | 'back'
+
+export interface Folder {
+  id: number
+  parentId: number | null
+  name: string
+  position: number
+}
+
+export interface Deck {
+  id: number
+  folderId: number | null
+  name: string
+  position: number
+}
+
+export interface Highlight {
+  side: Side
+  text: string
+}
+
+export interface NewCard {
+  front: string
+  back: string
+  highlights: Highlight[]
+}
+
+export interface Card extends NewCard {
+  id: number
+  deckId: number
+  position: number
+  status: Status
+  ease: number
+  intervalDays: number
+  dueAt: string | null
+  reps: number
+  lapses: number
+  streak: number
+  learningStep: number
+  lastReviewedAt: string | null
+}
+
+export interface DeckStats {
+  new: number
+  learning: number
+  mastered: number
+  due: number
+}
+
+export interface StudyStats {
+  due: number
+  reviewedToday: number
+  streak: number
+}
+
+export interface LibrarySnapshot {
+  folders: Folder[]
+  decks: Deck[]
+  cardsByDeck: Record<number, Card[]>
+  statsByDeck: Record<number, DeckStats>
+  study: StudyStats
+}
+
+export interface TextSegment {
+  kind: 'text'
+  text: string
+}
+
+export interface BlankSegment {
+  kind: 'blank'
+  text: string
+  target: boolean
+}
+
+export type Segment = TextSegment | BlankSegment
+
+export type Prompt =
+  | { kind: 'cloze'; segments: Segment[] }
+  | { kind: 'front'; text: string }
+
+export interface Question {
+  cardId: number
+  front: string
+  back: string
+  prompt: Prompt
+  clozeSide: Side | null
+  choices: string[]
+  answerIndex: number
+  answer: string
+}
+
+export const EMPTY_STATS: DeckStats = {
+  new: 0,
+  learning: 0,
+  mastered: 0,
+  due: 0,
+}
+
+export function isDue(card: Card, now = new Date()): boolean {
+  if (card.status === 'new' || card.dueAt === null) return true
+  return new Date(card.dueAt).getTime() <= now.getTime()
+}
