@@ -14,7 +14,7 @@ import { useRouter } from '@tanstack/react-router'
 
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
-import { highestDueDeck } from '../../core/stats'
+import { folderPath, highestDueDeck } from '../../core/stats'
 import type { Deck, LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
 import { startStudyFn } from './library.functions'
@@ -67,8 +67,22 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       if (current?.kind !== next?.kind || current?.id !== next?.id) setFilter('all')
       return next
     })
+    if (next) {
+      const startId =
+        next.kind === 'folder'
+          ? next.id
+          : library.decks.find((deck) => deck.id === next.id)?.folderId ?? null
+      const path = folderPath(library.folders, startId)
+      if (path.length > 0) {
+        setExpanded((current) => {
+          const nextExpanded = new Set(current)
+          for (const id of path) nextExpanded.add(id)
+          return nextExpanded
+        })
+      }
+    }
     setDrawerOpen(false)
-  }, [])
+  }, [library.decks, library.folders])
 
   const closeDialog = useCallback(() => setDialog(null), [])
   const createParentId = selectedFolder?.id ?? null
@@ -331,16 +345,11 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
 
 function initialExpanded(library: LibrarySnapshot): Set<number> {
   const expanded = new Set<number>()
-  const parents = new Map(library.folders.map((folder) => [folder.id, folder.parentId]))
   for (const folder of library.folders) {
     if (folder.parentId === null) expanded.add(folder.id)
   }
   for (const deck of library.decks) {
-    let parent = deck.folderId
-    while (parent !== null) {
-      expanded.add(parent)
-      parent = parents.get(parent) ?? null
-    }
+    for (const id of folderPath(library.folders, deck.folderId)) expanded.add(id)
   }
   return expanded
 }

@@ -1,4 +1,4 @@
-import { EMPTY_STATS, type Deck, type DeckStats, type LibrarySnapshot } from './types'
+import { EMPTY_STATS, type Deck, type DeckStats, type Folder, type LibrarySnapshot } from './types'
 
 export function localDayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
@@ -32,6 +32,17 @@ export function sumStats(statsByDeck: Record<number, DeckStats>): DeckStats {
     total.due += stats.due
   }
   return total
+}
+
+export function folderPath(folders: Folder[], startId: number | null): number[] {
+  const parents = new Map(folders.map((folder) => [folder.id, folder.parentId]))
+  const ids: number[] = []
+  let current = startId
+  while (current !== null) {
+    ids.push(current)
+    current = parents.get(current) ?? null
+  }
+  return ids
 }
 
 export function descendantDeckIds(library: LibrarySnapshot, folderId: number): number[] {
