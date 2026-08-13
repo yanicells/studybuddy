@@ -20,8 +20,8 @@ export const getLibraryFn = createServerFn({ method: 'GET' }).handler(async () =
       import('../../server/library.server'),
       import('../../server/seed.server'),
     ])
-  const db = getDatabase()
-  seedSampleIfMissing(db)
+  const db = await getDatabase()
+  await seedSampleIfMissing(db)
   return getLibrarySnapshot(db)
 })
 
@@ -32,7 +32,7 @@ export const createFolderFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    const folder = createFolder(getDatabase(), data.parentId, data.name)
+    const folder = await createFolder(await getDatabase(), data.parentId, data.name)
     return { ok: true as const, id: folder.id }
   })
 
@@ -44,7 +44,7 @@ export const renameFolderFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    renameFolder(getDatabase(), data.id, data.name)
+    await renameFolder(await getDatabase(), data.id, data.name)
     return { ok: true as const }
   })
 
@@ -55,7 +55,7 @@ export const moveFolderFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    moveFolder(getDatabase(), data.id, data.parentId)
+    await moveFolder(await getDatabase(), data.id, data.parentId)
     return { ok: true as const }
   })
 
@@ -66,7 +66,7 @@ export const deleteFolderFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    deleteFolder(getDatabase(), data.id)
+    await deleteFolder(await getDatabase(), data.id)
     return { ok: true as const }
   })
 
@@ -77,7 +77,7 @@ export const createDeckFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    const deck = createDeck(getDatabase(), data.parentId, data.name)
+    const deck = await createDeck(await getDatabase(), data.parentId, data.name)
     return { ok: true as const, id: deck.id }
   })
 
@@ -89,7 +89,7 @@ export const renameDeckFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    renameDeck(getDatabase(), data.id, data.name)
+    await renameDeck(await getDatabase(), data.id, data.name)
     return { ok: true as const }
   })
 
@@ -100,7 +100,7 @@ export const moveDeckFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    moveDeck(getDatabase(), data.id, data.parentId)
+    await moveDeck(await getDatabase(), data.id, data.parentId)
     return { ok: true as const }
   })
 
@@ -111,7 +111,7 @@ export const deleteDeckFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    deleteDeck(getDatabase(), data.id)
+    await deleteDeck(await getDatabase(), data.id)
     return { ok: true as const }
   })
 
@@ -122,12 +122,13 @@ export const saveCardFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
+    const db = await getDatabase()
     const card = cardFromEditor(data.front, data.back)
     if (data.id === null) {
-      const created = repository.createCard(getDatabase(), data.deckId, card)
+      const created = await repository.createCard(db, data.deckId, card)
       return { ok: true as const, id: created.id }
     }
-    repository.updateCard(getDatabase(), data.id, card)
+    await repository.updateCard(db, data.id, card)
     return { ok: true as const, id: data.id }
   })
 
@@ -138,7 +139,7 @@ export const deleteCardFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    deleteCard(getDatabase(), data.id)
+    await deleteCard(await getDatabase(), data.id)
     return { ok: true as const }
   })
 
@@ -163,10 +164,10 @@ export const importCardsFn = createServerFn({ method: 'POST' })
       notice = `Imported without AI keywords (${message})`
     }
 
-    const db = getDatabase()
+    const db = await getDatabase()
     const deckId =
-      data.deckId ?? repository.createDeck(db, data.folderId, 'Imported').id
-    const count = repository.importCards(db, deckId, cards)
+      data.deckId ?? (await repository.createDeck(db, data.folderId, 'Imported')).id
+    const count = await repository.importCards(db, deckId, cards)
     return { ok: true as const, count, deckId, notice }
   })
 
@@ -177,10 +178,10 @@ export const startStudyFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    const db = getDatabase()
+    const db = await getDatabase()
     return {
-      dueCards: dueCards(db, data.deckId),
-      deckCards: listCards(db, data.deckId),
+      dueCards: await dueCards(db, data.deckId),
+      deckCards: await listCards(db, data.deckId),
     }
   })
 
@@ -191,13 +192,13 @@ export const recordAnswerFn = createServerFn({ method: 'POST' })
       import('../../server/database.server'),
       import('../../server/library.server'),
     ])
-    const db = getDatabase()
-    return db.transaction(() => {
-      const updated = applyAnswer(repository.getCard(db, data.cardId), data.correct)
-      repository.saveCardSrs(db, updated)
-      repository.recordReview(db, data.cardId, data.correct)
+    const db = await getDatabase()
+    return db.transaction(async (tx) => {
+      const updated = applyAnswer(await repository.getCard(tx, data.cardId), data.correct)
+      await repository.saveCardSrs(tx, updated)
+      await repository.recordReview(tx, data.cardId, data.correct)
       return updated
-    })()
+    })
   })
 
 function cardFromEditor(frontInput: string, backInput: string): NewCard {

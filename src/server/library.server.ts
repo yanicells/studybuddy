@@ -1,4 +1,4 @@
-import type Database from 'better-sqlite3'
+import { eq, isNull, max, sql } from 'drizzle-orm'
 
 import type {
   Card,
@@ -11,39 +11,8 @@ import type {
   Status,
 } from '../core/types'
 import { EMPTY_STATS, isDue } from '../core/types'
-import { getDatabase } from './database.server'
-
-interface FolderRow {
-  id: number
-  parent_id: number | null
-  name: string
-  position: number
-}
-
-interface DeckRow {
-  id: number
-  folder_id: number | null
-  name: string
-  position: number
-}
-
-interface CardRow {
-  id: number
-  deck_id: number
-  front: string
-  back: string
-  highlights: string
-  position: number
-  status: string
-  ease: number
-  interval_days: number
-  due_at: string | null
-  reps: number
-  lapses: number
-  streak: number
-  learning_step: number
-  last_reviewed_at: string | null
-}
+import type { Db } from './database.server'
+import { cards, decks, folders, reviews } from './schema'
 
 export interface Review {
   id: number
@@ -52,62 +21,53 @@ export interface Review {
   reviewedAt: string
 }
 
-export function createFolder(
-  db: Database.Database = getDatabase(),
+export async function createFolder(
+  db: Db,
   parentId: number | null,
   rawName: string,
-): Folder {
+): Promise<Folder> {
   const name = requireName(rawName, 'folder')
-  const position = nextPosition(db, 'folders', 'parent_id', parentId)
-  const result = db
-    .prepare(
-      'INSERT INTO folders (parent_id, name, position, created_at) VALUES (?, ?, ?, ?)',
-    )
-    .run(parentId, name, position, nowIso())
-  return getFolder(db, Number(result.lastInsertRowid))
+  const position = await nextPosition(db, 'folders', parentId)
+  const [row] = await db
+    .insert(folders)
+    .values({ parentId, name, position, createdAt: nowIso() })
+    .returning()
+  if (!row) throw new Error('Folder not found')
+  return mapFolder(row)
 }
 
-export function renameFolder(
-  db: Database.Database = getDatabase(),
-  id: number,
-  rawName: string,
-): void {
+export async function renameFolder(db: Db, id: number, rawName: string): Promise<void> {
   const name = requireName(rawName, 'folder')
-  const result = db.prepare('UPDATE folders SET name = ? WHERE id = ?').run(name, id)
-  if (result.changes === 0) throw new Error('Folder not found')
+  const result = await db.update(folders).set({ name }).where(eq(folders.id, id))
+  if (result.rowsAffected === 0) throw new Error('Folder not found')
 }
 
-export function moveFolder(
-  db: Database.Database = getDatabase(),
+export async function moveFolder(
+  db: Db,
   id: number,
   parentId: number | null,
-): void {
+): Promise<void> {
   if (parentId === id) throw new Error('A folder cannot be moved into itself')
-  if (parentId !== null && folderDescendants(db, id).includes(parentId)) {
+  if (parentId !== null && (await folderDescendants(db, id)).includes(parentId)) {
     throw new Error('A folder cannot be moved into its own child')
   }
-  const result = db.prepare('UPDATE folders SET parent_id = ? WHERE id = ?').run(parentId, id)
-  if (result.changes === 0) throw new Error('Folder not found')
+  const result = await db.update(folders).set({ parentId }).where(eq(folders.id, id))
+  if (result.rowsAffected === 0) throw new Error('Folder not found')
 }
 
-export function deleteFolder(db: Database.Database = getDatabase(), id: number): void {
-  const result = db.prepare('DELETE FROM folders WHERE id = ?').run(id)
-  if (result.changes === 0) throw new Error('Folder not found')
+export async function deleteFolder(db: Db, id: number): Promise<void> {
+  const result = await db.delete(folders).where(eq(folders.id, id))
+  if (result.rowsAffected === 0) throw new Error('Folder not found')
 }
 
-export function listFolders(db: Database.Database = getDatabase()): Folder[] {
-  const rows = db
-    .prepare('SELECT id, parent_id, name, position FROM folders ORDER BY position, name')
-    .all() as FolderRow[]
+export async function listFolders(db: Db): Promise<Folder[]> {
+  const rows = await db.select().from(folders).orderBy(folders.position, folders.name)
   return rows.map(mapFolder)
 }
 
-export function folderDescendants(
-  db: Database.Database = getDatabase(),
-  id: number,
-): number[] {
+export async function folderDescendants(db: Db, id: number): Promise<number[]> {
   const children = new Map<number | null, number[]>()
-  for (const folder of listFolders(db)) {
+  for (const folder of await listFolders(db)) {
     const siblings = children.get(folder.parentId) ?? []
     siblings.push(folder.id)
     children.set(folder.parentId, siblings)
@@ -122,187 +82,173 @@ export function folderDescendants(
   return result
 }
 
-export function createDeck(
-  db: Database.Database = getDatabase(),
+export async function createDeck(
+  db: Db,
   folderId: number | null,
   rawName: string,
-): Deck {
+): Promise<Deck> {
   const name = requireName(rawName, 'deck')
-  const position = nextPosition(db, 'decks', 'folder_id', folderId)
-  const result = db
-    .prepare(
-      'INSERT INTO decks (folder_id, name, position, created_at) VALUES (?, ?, ?, ?)',
-    )
-    .run(folderId, name, position, nowIso())
-  return getDeck(db, Number(result.lastInsertRowid))
-}
-
-export function renameDeck(
-  db: Database.Database = getDatabase(),
-  id: number,
-  rawName: string,
-): void {
-  const name = requireName(rawName, 'deck')
-  const result = db.prepare('UPDATE decks SET name = ? WHERE id = ?').run(name, id)
-  if (result.changes === 0) throw new Error('Deck not found')
-}
-
-export function moveDeck(
-  db: Database.Database = getDatabase(),
-  id: number,
-  folderId: number | null,
-): void {
-  const result = db.prepare('UPDATE decks SET folder_id = ? WHERE id = ?').run(folderId, id)
-  if (result.changes === 0) throw new Error('Deck not found')
-}
-
-export function deleteDeck(db: Database.Database = getDatabase(), id: number): void {
-  const result = db.prepare('DELETE FROM decks WHERE id = ?').run(id)
-  if (result.changes === 0) throw new Error('Deck not found')
-}
-
-export function getDeck(db: Database.Database = getDatabase(), id: number): Deck {
-  const row = db
-    .prepare('SELECT id, folder_id, name, position FROM decks WHERE id = ?')
-    .get(id) as DeckRow | undefined
+  const position = await nextPosition(db, 'decks', folderId)
+  const [row] = await db
+    .insert(decks)
+    .values({ folderId, name, position, createdAt: nowIso() })
+    .returning()
   if (!row) throw new Error('Deck not found')
   return mapDeck(row)
 }
 
-export function listDecks(db: Database.Database = getDatabase()): Deck[] {
-  const rows = db
-    .prepare('SELECT id, folder_id, name, position FROM decks ORDER BY position, name')
-    .all() as DeckRow[]
+export async function renameDeck(db: Db, id: number, rawName: string): Promise<void> {
+  const name = requireName(rawName, 'deck')
+  const result = await db.update(decks).set({ name }).where(eq(decks.id, id))
+  if (result.rowsAffected === 0) throw new Error('Deck not found')
+}
+
+export async function moveDeck(
+  db: Db,
+  id: number,
+  folderId: number | null,
+): Promise<void> {
+  const result = await db.update(decks).set({ folderId }).where(eq(decks.id, id))
+  if (result.rowsAffected === 0) throw new Error('Deck not found')
+}
+
+export async function deleteDeck(db: Db, id: number): Promise<void> {
+  const result = await db.delete(decks).where(eq(decks.id, id))
+  if (result.rowsAffected === 0) throw new Error('Deck not found')
+}
+
+export async function getDeck(db: Db, id: number): Promise<Deck> {
+  const [row] = await db.select().from(decks).where(eq(decks.id, id)).limit(1)
+  if (!row) throw new Error('Deck not found')
+  return mapDeck(row)
+}
+
+export async function listDecks(db: Db): Promise<Deck[]> {
+  const rows = await db.select().from(decks).orderBy(decks.position, decks.name)
   return rows.map(mapDeck)
 }
 
-export function createCard(
-  db: Database.Database = getDatabase(),
-  deckId: number,
-  card: NewCard,
-): Card {
+export async function createCard(db: Db, deckId: number, card: NewCard): Promise<Card> {
   const front = requireFront(card.front)
-  const position = nextPosition(db, 'cards', 'deck_id', deckId)
-  const result = db
-    .prepare(
-      `INSERT INTO cards
-       (deck_id, front, back, highlights, position, created_at, status, ease,
-        interval_days, due_at, reps, lapses, streak, learning_step)
-       VALUES (?, ?, ?, ?, ?, ?, 'new', 2.5, 0, NULL, 0, 0, 0, 0)`,
-    )
-    .run(deckId, front, card.back, JSON.stringify(card.highlights), position, nowIso())
-  return getCard(db, Number(result.lastInsertRowid))
-}
-
-export function updateCard(
-  db: Database.Database = getDatabase(),
-  id: number,
-  card: NewCard,
-): void {
-  const front = requireFront(card.front)
-  const result = db
-    .prepare('UPDATE cards SET front = ?, back = ?, highlights = ? WHERE id = ?')
-    .run(front, card.back, JSON.stringify(card.highlights), id)
-  if (result.changes === 0) throw new Error('Card not found')
-}
-
-export function deleteCard(db: Database.Database = getDatabase(), id: number): void {
-  const result = db.prepare('DELETE FROM cards WHERE id = ?').run(id)
-  if (result.changes === 0) throw new Error('Card not found')
-}
-
-export function getCard(db: Database.Database = getDatabase(), id: number): Card {
-  const row = db.prepare(`${CARD_SELECT} WHERE id = ?`).get(id) as CardRow | undefined
+  const position = await nextPosition(db, 'cards', deckId)
+  const [row] = await db
+    .insert(cards)
+    .values({
+      deckId,
+      front,
+      back: card.back,
+      highlights: JSON.stringify(card.highlights),
+      position,
+      createdAt: nowIso(),
+    })
+    .returning()
   if (!row) throw new Error('Card not found')
   return mapCard(row)
 }
 
-export function listCards(db: Database.Database = getDatabase(), deckId: number): Card[] {
-  const rows = db
-    .prepare(`${CARD_SELECT} WHERE deck_id = ? ORDER BY position, id`)
-    .all(deckId) as CardRow[]
+export async function updateCard(db: Db, id: number, card: NewCard): Promise<void> {
+  const front = requireFront(card.front)
+  const result = await db
+    .update(cards)
+    .set({ front, back: card.back, highlights: JSON.stringify(card.highlights) })
+    .where(eq(cards.id, id))
+  if (result.rowsAffected === 0) throw new Error('Card not found')
+}
+
+export async function deleteCard(db: Db, id: number): Promise<void> {
+  const result = await db.delete(cards).where(eq(cards.id, id))
+  if (result.rowsAffected === 0) throw new Error('Card not found')
+}
+
+export async function getCard(db: Db, id: number): Promise<Card> {
+  const [row] = await db.select().from(cards).where(eq(cards.id, id)).limit(1)
+  if (!row) throw new Error('Card not found')
+  return mapCard(row)
+}
+
+export async function listCards(db: Db, deckId: number): Promise<Card[]> {
+  const rows = await db
+    .select()
+    .from(cards)
+    .where(eq(cards.deckId, deckId))
+    .orderBy(cards.position, cards.id)
   return rows.map(mapCard)
 }
 
-export function saveCardSrs(db: Database.Database = getDatabase(), card: Card): void {
-  const result = db
-    .prepare(
-      `UPDATE cards SET status = ?, ease = ?, interval_days = ?, due_at = ?, reps = ?,
-       lapses = ?, streak = ?, learning_step = ?, last_reviewed_at = ? WHERE id = ?`,
-    )
-    .run(
-      card.status,
-      card.ease,
-      card.intervalDays,
-      card.dueAt,
-      card.reps,
-      card.lapses,
-      card.streak,
-      card.learningStep,
-      card.lastReviewedAt,
-      card.id,
-    )
-  if (result.changes === 0) throw new Error('Card not found')
+export async function saveCardSrs(db: Db, card: Card): Promise<void> {
+  const result = await db
+    .update(cards)
+    .set({
+      status: card.status,
+      ease: card.ease,
+      intervalDays: card.intervalDays,
+      dueAt: card.dueAt,
+      reps: card.reps,
+      lapses: card.lapses,
+      streak: card.streak,
+      learningStep: card.learningStep,
+      lastReviewedAt: card.lastReviewedAt,
+    })
+    .where(eq(cards.id, card.id))
+  if (result.rowsAffected === 0) throw new Error('Card not found')
 }
 
-export function recordReview(
-  db: Database.Database = getDatabase(),
+export async function recordReview(
+  db: Db,
   cardId: number,
   correct: boolean,
   reviewedAt = new Date(),
-): void {
-  db.prepare('INSERT INTO reviews (card_id, correct, reviewed_at) VALUES (?, ?, ?)').run(
+): Promise<void> {
+  await db.insert(reviews).values({
     cardId,
-    correct ? 1 : 0,
-    reviewedAt.toISOString(),
-  )
+    correct: correct ? 1 : 0,
+    reviewedAt: reviewedAt.toISOString(),
+  })
 }
 
-export function listReviews(db: Database.Database = getDatabase()): Review[] {
-  const rows = db
-    .prepare('SELECT id, card_id, correct, reviewed_at FROM reviews ORDER BY id')
-    .all() as Array<{ id: number; card_id: number; correct: number; reviewed_at: string }>
+export async function listReviews(db: Db): Promise<Review[]> {
+  const rows = await db.select().from(reviews).orderBy(reviews.id)
   return rows.map((row) => ({
     id: row.id,
-    cardId: row.card_id,
+    cardId: row.cardId,
     correct: row.correct === 1,
-    reviewedAt: row.reviewed_at,
+    reviewedAt: row.reviewedAt,
   }))
 }
 
-export function importCards(
-  db: Database.Database = getDatabase(),
+export async function importCards(
+  db: Db,
   deckId: number,
-  cards: NewCard[],
-): number {
-  return db.transaction(() => {
+  incoming: NewCard[],
+): Promise<number> {
+  return db.transaction(async (tx) => {
     let count = 0
-    for (const card of cards) {
+    for (const card of incoming) {
       if (!card.front.trim()) continue
-      createCard(db, deckId, card)
+      await createCard(tx, deckId, card)
       count += 1
     }
     return count
-  })()
+  })
 }
 
-export function dueCards(
-  db: Database.Database = getDatabase(),
+export async function dueCards(
+  db: Db,
   deckId: number,
   now = new Date(),
-): Card[] {
-  return listCards(db, deckId).filter((card) => isDue(card, now))
+): Promise<Card[]> {
+  return (await listCards(db, deckId)).filter((card) => isDue(card, now))
 }
 
-export function getLibrarySnapshot(db: Database.Database = getDatabase()): LibrarySnapshot {
-  const folders = listFolders(db)
-  const decks = listDecks(db)
-  const rows = db.prepare(`${CARD_SELECT} ORDER BY deck_id, position, id`).all() as CardRow[]
+export async function getLibrarySnapshot(db: Db): Promise<LibrarySnapshot> {
+  const folderRows = await listFolders(db)
+  const deckRows = await listDecks(db)
+  const rows = await db.select().from(cards).orderBy(cards.deckId, cards.position, cards.id)
   const cardsByDeck: Record<number, Card[]> = {}
   const statsByDeck: Record<number, DeckStats> = {}
   const now = new Date()
 
-  for (const deck of decks) {
+  for (const deck of deckRows) {
     cardsByDeck[deck.id] = []
     statsByDeck[deck.id] = { ...EMPTY_STATS }
   }
@@ -315,26 +261,18 @@ export function getLibrarySnapshot(db: Database.Database = getDatabase()): Libra
     stats[card.status] += 1
     if (isDue(card, now)) stats.due += 1
   }
-  return { folders, decks, cardsByDeck, statsByDeck }
+  return { folders: folderRows, decks: deckRows, cardsByDeck, statsByDeck }
 }
 
-function getFolder(db: Database.Database, id: number): Folder {
-  const row = db
-    .prepare('SELECT id, parent_id, name, position FROM folders WHERE id = ?')
-    .get(id) as FolderRow | undefined
-  if (!row) throw new Error('Folder not found')
-  return mapFolder(row)
+function mapFolder(row: typeof folders.$inferSelect): Folder {
+  return { id: row.id, parentId: row.parentId, name: row.name, position: row.position }
 }
 
-function mapFolder(row: FolderRow): Folder {
-  return { id: row.id, parentId: row.parent_id, name: row.name, position: row.position }
+function mapDeck(row: typeof decks.$inferSelect): Deck {
+  return { id: row.id, folderId: row.folderId, name: row.name, position: row.position }
 }
 
-function mapDeck(row: DeckRow): Deck {
-  return { id: row.id, folderId: row.folder_id, name: row.name, position: row.position }
-}
-
-function mapCard(row: CardRow): Card {
+function mapCard(row: typeof cards.$inferSelect): Card {
   let highlights: Highlight[]
   try {
     highlights = JSON.parse(row.highlights) as Highlight[]
@@ -345,20 +283,20 @@ function mapCard(row: CardRow): Card {
     row.status === 'learning' || row.status === 'mastered' ? row.status : 'new'
   return {
     id: row.id,
-    deckId: row.deck_id,
+    deckId: row.deckId,
     front: row.front,
     back: row.back,
     highlights,
     position: row.position,
     status: validStatus,
     ease: row.ease,
-    intervalDays: row.interval_days,
-    dueAt: row.due_at,
+    intervalDays: row.intervalDays,
+    dueAt: row.dueAt,
     reps: row.reps,
     lapses: row.lapses,
     streak: row.streak,
-    learningStep: row.learning_step,
-    lastReviewedAt: row.last_reviewed_at,
+    learningStep: row.learningStep,
+    lastReviewedAt: row.lastReviewedAt,
   }
 }
 
@@ -374,18 +312,30 @@ function requireFront(value: string): string {
   return front
 }
 
-function nextPosition(
-  db: Database.Database,
+async function nextPosition(
+  db: Db,
   table: 'folders' | 'decks' | 'cards',
-  parentColumn: 'parent_id' | 'folder_id' | 'deck_id',
   parentId: number | null,
-): number {
-  const row = db
-    .prepare(
-      `SELECT COALESCE(MAX(position), -1) + 1 AS position FROM ${table} WHERE ${parentColumn} IS ?`,
-    )
-    .get(parentId) as { position: number }
-  return row.position
+): Promise<number> {
+  if (table === 'folders') {
+    const [row] = await db
+      .select({ position: sql<number>`coalesce(${max(folders.position)}, -1) + 1` })
+      .from(folders)
+      .where(parentId === null ? isNull(folders.parentId) : eq(folders.parentId, parentId))
+    return row?.position ?? 0
+  }
+  if (table === 'decks') {
+    const [row] = await db
+      .select({ position: sql<number>`coalesce(${max(decks.position)}, -1) + 1` })
+      .from(decks)
+      .where(parentId === null ? isNull(decks.folderId) : eq(decks.folderId, parentId))
+    return row?.position ?? 0
+  }
+  const [row] = await db
+    .select({ position: sql<number>`coalesce(${max(cards.position)}, -1) + 1` })
+    .from(cards)
+    .where(eq(cards.deckId, parentId ?? -1))
+  return row?.position ?? 0
 }
 
 function nowIso(): string {
@@ -395,6 +345,3 @@ function nowIso(): string {
 function capitalize(value: string): string {
   return value[0]!.toUpperCase() + value.slice(1)
 }
-
-const CARD_SELECT = `SELECT id, deck_id, front, back, highlights, position, status, ease,
-  interval_days, due_at, reps, lapses, streak, learning_step, last_reviewed_at FROM cards`

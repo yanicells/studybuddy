@@ -4,5 +4,9 @@ import { nitro } from 'nitro/vite'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  plugins: [tanstackStart(), nitro(), react()],
+  plugins: [
+    tanstackStart(),
+    nitro(process.env.VERCEL ? { preset: 'vercel' } : {}),
+    react(),
+  ],
 })

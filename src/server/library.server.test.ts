@@ -2,12 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import type Database from 'better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { parseCards } from '../core/import'
 import { applyAnswer } from '../core/srs'
-import { openDatabase } from './database.server'
+import { closeDatabase, openDatabase, type Database } from './database.server'
 import {
   createCard,
   createDeck,
@@ -26,46 +25,46 @@ import {
 } from './library.server'
 import { seedSampleIfMissing } from './seed.server'
 
-describe('SQLite library repository', () => {
+describe('library repository', () => {
   let directory: string
-  let db: Database.Database
+  let db: Database
 
-  beforeEach(() => {
+  beforeEach(async () => {
     directory = mkdtempSync(join(tmpdir(), 'studybuddy-test-'))
-    db = openDatabase(join(directory, 'studybuddy.db'))
+    db = await openDatabase(join(directory, 'studybuddy.db'))
   })
 
-  afterEach(() => {
-    db.close()
+  afterEach(async () => {
+    await closeDatabase(db)
     rmSync(directory, { recursive: true, force: true })
   })
 
-  it('creates nested folders and rejects descendant cycles', () => {
-    const root = createFolder(db, null, 'Biology')
-    const child = createFolder(db, root.id, 'Week 1')
+  it('creates nested folders and rejects descendant cycles', async () => {
+    const root = await createFolder(db, null, 'Biology')
+    const child = await createFolder(db, root.id, 'Week 1')
 
-    expect(folderDescendants(db, root.id)).toEqual([child.id])
-    expect(() => moveFolder(db, root.id, child.id)).toThrow(/own child/)
-    moveFolder(db, child.id, null)
-    deleteFolder(db, root.id)
+    expect(await folderDescendants(db, root.id)).toEqual([child.id])
+    await expect(moveFolder(db, root.id, child.id)).rejects.toThrow(/own child/)
+    await moveFolder(db, child.id, null)
+    await deleteFolder(db, root.id)
 
-    expect(getLibrarySnapshot(db).folders).toEqual([
+    expect((await getLibrarySnapshot(db)).folders).toEqual([
       expect.objectContaining({ id: child.id, parentId: null }),
     ])
   })
 
-  it('imports cards transactionally and calculates due status totals', () => {
-    const deck = createDeck(db, null, 'Cells')
-    const count = importCards(
+  it('imports cards transactionally and calculates due status totals', async () => {
+    const deck = await createDeck(db, null, 'Cells')
+    const count = await importCards(
       db,
       deck.id,
       parseCards(
-        'The ==mitochondria== is the powerhouse of the cell\n- mitochondria\n\nNucleus\n- control center',
+        'The **mitochondria** is the powerhouse of the cell\n- mitochondria\n\nNucleus\n- control center',
       ),
     )
 
     expect(count).toBe(2)
-    expect(getLibrarySnapshot(db).statsByDeck[deck.id]).toEqual({
+    expect((await getLibrarySnapshot(db)).statsByDeck[deck.id]).toEqual({
       new: 2,
       learning: 0,
       mastered: 0,
@@ -73,36 +72,36 @@ describe('SQLite library repository', () => {
     })
   })
 
-  it('persists scheduling and review logs', () => {
-    const deck = createDeck(db, null, 'Review')
-    const card = createCard(db, deck.id, {
+  it('persists scheduling and review logs', async () => {
+    const deck = await createDeck(db, null, 'Review')
+    const card = await createCard(db, deck.id, {
       front: 'Question',
       back: 'Answer',
       highlights: [],
     })
     const updated = applyAnswer(card, true, new Date('2026-08-13T03:00:00.000Z'))
 
-    saveCardSrs(db, updated)
-    recordReview(db, card.id, true, new Date('2026-08-13T03:00:00.000Z'))
+    await saveCardSrs(db, updated)
+    await recordReview(db, card.id, true, new Date('2026-08-13T03:00:00.000Z'))
 
-    expect(getCard(db, card.id)).toMatchObject({ status: 'learning', reps: 1 })
-    expect(listReviews(db)).toEqual([
+    expect(await getCard(db, card.id)).toMatchObject({ status: 'learning', reps: 1 })
+    expect(await listReviews(db)).toEqual([
       expect.objectContaining({ cardId: card.id, correct: true }),
     ])
   })
 
-  it('cascades deck deletion to cards', () => {
-    const deck = createDeck(db, null, 'Temporary')
-    createCard(db, deck.id, { front: 'A', back: 'B', highlights: [] })
-    deleteDeck(db, deck.id)
-    expect(listCards(db, deck.id)).toEqual([])
+  it('cascades deck deletion to cards', async () => {
+    const deck = await createDeck(db, null, 'Temporary')
+    await createCard(db, deck.id, { front: 'A', back: 'B', highlights: [] })
+    await deleteDeck(db, deck.id)
+    expect(await listCards(db, deck.id)).toEqual([])
   })
 
-  it('seeds the nested sample library only once', () => {
-    expect(seedSampleIfMissing(db)).toBe(true)
-    expect(seedSampleIfMissing(db)).toBe(false)
+  it('seeds the nested sample library only once', async () => {
+    expect(await seedSampleIfMissing(db)).toBe(true)
+    expect(await seedSampleIfMissing(db)).toBe(false)
 
-    const snapshot = getLibrarySnapshot(db)
+    const snapshot = await getLibrarySnapshot(db)
     const course = snapshot.folders.find((folder) => folder.name === 'CSCI 50.01')
     const lecture = snapshot.folders.find(
       (folder) => folder.name === 'Hardware Lecture' && folder.parentId === course?.id,

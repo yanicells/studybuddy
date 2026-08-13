@@ -1,54 +1,21 @@
+import 'dotenv/config'
+
 import { existsSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
-import Database from 'better-sqlite3'
+import { createClient, type Client } from '@libsql/client'
+import { drizzle, type LibSQLDatabase } from 'drizzle-orm/libsql'
 
-const SCHEMA = `
-CREATE TABLE IF NOT EXISTS folders (
-    id INTEGER PRIMARY KEY,
-    parent_id INTEGER REFERENCES folders(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS decks (
-    id INTEGER PRIMARY KEY,
-    folder_id INTEGER REFERENCES folders(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    position INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS cards (
-    id INTEGER PRIMARY KEY,
-    deck_id INTEGER NOT NULL REFERENCES decks(id) ON DELETE CASCADE,
-    front TEXT NOT NULL,
-    back TEXT NOT NULL,
-    highlights TEXT NOT NULL DEFAULT '[]',
-    position INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'new',
-    ease REAL NOT NULL DEFAULT 2.5,
-    interval_days REAL NOT NULL DEFAULT 0,
-    due_at TEXT,
-    reps INTEGER NOT NULL DEFAULT 0,
-    lapses INTEGER NOT NULL DEFAULT 0,
-    streak INTEGER NOT NULL DEFAULT 0,
-    learning_step INTEGER NOT NULL DEFAULT 0,
-    last_reviewed_at TEXT
-);
-CREATE TABLE IF NOT EXISTS reviews (
-    id INTEGER PRIMARY KEY,
-    card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
-    correct INTEGER NOT NULL,
-    reviewed_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parent_id);
-CREATE INDEX IF NOT EXISTS idx_decks_folder ON decks(folder_id);
-CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
-`
+import { MIGRATIONS } from './migrations'
+import { schema } from './schema'
 
-let defaultDatabase: Database.Database | undefined
+export type Database = LibSQLDatabase<typeof schema>
+type Transaction = Parameters<Parameters<Database['transaction']>[0]>[0]
+export type Db = Database | Transaction
+
+const clients = new WeakMap<Database, Client>()
+let defaultDatabase: Promise<Database> | undefined
 
 export function resolveDatabasePath(): string {
   const configured = process.env.STUDYBUDDY_DB_PATH?.trim()
@@ -65,17 +32,61 @@ export function resolveDatabasePath(): string {
   return resolve('data/studybuddy.db')
 }
 
-export function openDatabase(path = resolveDatabasePath()): Database.Database {
+export function resolveConnection(): { url: string; authToken?: string } {
+  const url = process.env.TURSO_DATABASE_URL?.trim()
+  const authToken = process.env.TURSO_AUTH_TOKEN?.trim()
+  if (url && authToken) return { url, authToken }
+
+  const path = resolveDatabasePath()
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
-  const db = new Database(path)
-  db.pragma('foreign_keys = ON')
-  db.pragma('journal_mode = WAL')
-  db.pragma('busy_timeout = 5000')
-  db.exec(SCHEMA)
+  return { url: path === ':memory:' ? ':memory:' : `file:${path}` }
+}
+
+export async function openDatabase(
+  connection: { url: string; authToken?: string } | string = resolveConnection(),
+): Promise<Database> {
+  const options = typeof connection === 'string'
+    ? { url: connection === ':memory:' ? ':memory:' : `file:${connection}` }
+    : connection
+  if (options.url.startsWith('file:')) {
+    mkdirSync(dirname(options.url.slice('file:'.length)), { recursive: true })
+  }
+  const client = createClient(options)
+  await client.execute('PRAGMA foreign_keys = ON')
+  await applyMigrations(client)
+  const db = drizzle(client, { schema })
+  clients.set(db, client)
   return db
 }
 
-export function getDatabase(): Database.Database {
+export function getDatabase(): Promise<Database> {
   defaultDatabase ??= openDatabase()
   return defaultDatabase
+}
+
+export async function closeDatabase(db: Database): Promise<void> {
+  const client = clients.get(db)
+  if (!client) return
+  client.close()
+  clients.delete(db)
+}
+
+export async function applyMigrations(client: Client): Promise<void> {
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS __drizzle_migrations (
+      id INTEGER PRIMARY KEY,
+      hash TEXT NOT NULL UNIQUE,
+      created_at INTEGER NOT NULL
+    )
+  `)
+  const applied = await client.execute('SELECT hash FROM __drizzle_migrations')
+  const hashes = new Set(applied.rows.map((row) => String(row.hash)))
+  for (const migration of MIGRATIONS) {
+    if (hashes.has(migration.hash)) continue
+    await client.executeMultiple(migration.sql)
+    await client.execute({
+      sql: 'INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)',
+      args: [migration.hash, Date.now()],
+    })
+  }
 }

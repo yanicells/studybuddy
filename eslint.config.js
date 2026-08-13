@@ -3,7 +3,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['.output', '.tanstack', 'dist', 'node_modules', 'src/routeTree.gen.ts', 'target'] },
+  { ignores: ['.output', '.tanstack', 'dist', 'node_modules', 'src/routeTree.gen.ts', 'target', 'drizzle/meta'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {

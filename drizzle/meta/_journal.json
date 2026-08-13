@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "turso",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1755100000000,
+      "tag": "0000_init",
+      "breakpoints": true
+    }
+  ]
+}
