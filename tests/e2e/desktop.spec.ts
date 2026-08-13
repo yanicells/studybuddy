@@ -104,9 +104,10 @@ function cardWithText(page: Page, text: string): Locator {
 }
 
 async function chooseMore(page: Page, name: string) {
-  const button = page.locator('.actions-menu').getByRole('button', { name, exact: true })
+  const menu = page.locator('.workspace-header .actions-menu')
+  const button = menu.getByRole('button', { name, exact: true })
   if (!(await button.isVisible())) {
-    await page.getByLabel('More actions').click()
+    await menu.getByLabel('More actions', { exact: true }).click()
   }
   await button.click()
 }

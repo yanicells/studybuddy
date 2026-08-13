@@ -22,7 +22,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Leave' }).click()
 
-  await page.getByLabel('More actions').click()
+  await page.locator('.workspace-header').getByLabel('More actions', { exact: true }).click()
   await page.getByRole('button', { name: 'Card', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'New card' })).toBeVisible()
   await page.getByRole('dialog', { name: 'New card' }).getByRole('button', { name: 'Cancel' }).click()
