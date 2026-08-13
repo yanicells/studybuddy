@@ -88,69 +88,87 @@ export function StudySession({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [continueSession, feedback, onLeave, pick])
 
-  const total = Math.max(session.total, 1)
-  const progress = session.completed / total
+  const roundLength = Math.max(session.roundLength, 1)
+  const roundShown = feedback ? session.roundAnswered : Math.min(session.roundAnswered + 1, roundLength)
+  const progress = done ? 1 : roundShown / roundLength
 
   return (
     <main className="study-shell">
-      <header className="study-header">
-        <Button variant="ghost" size="small" icon={<ArrowLeft size={17} />} onClick={onLeave}>
-          Leave
-        </Button>
-        <div className="study-header__progress">
-          <div>
+      <div className="study-column">
+        <header className="study-header">
+          <Button variant="ghost" size="small" icon={<ArrowLeft size={17} />} onClick={onLeave}>
+            Leave
+          </Button>
+          <div className="study-header__copy">
             <strong>{deckName}</strong>
-            <span>{session.completed} of {total} done · wave {session.wave} · {session.remaining} left</span>
+            {done ? (
+              <span>{session.completed} {session.completed === 1 ? 'card' : 'cards'} · {session.round} {session.round === 1 ? 'round' : 'rounds'}</span>
+            ) : (
+              <span>Round {session.round} · {roundShown} of {roundLength}</span>
+            )}
           </div>
-          <Progress value={progress} label={`${session.completed} of ${total} cards completed`} />
-        </div>
-      </header>
+        </header>
+        <Progress
+          value={progress}
+          label={done ? 'Session complete' : `Round ${session.round}, ${roundShown} of ${roundLength}`}
+        />
 
-      {done ? (
-        <section className="study-complete">
-          <div className="complete-card">
-            <h1>Session complete</h1>
-            <p>Come back tomorrow for the cards that graduated.</p>
-            <Button variant="primary" onClick={onLeave}>Back to deck</Button>
-          </div>
-        </section>
-      ) : (
-        <>
-          <div className="study-scroll">
-            <section className="study-stage">
-              <StudyCard
-                question={question}
-                revealed={feedback !== null}
-                hits={session.cardHits(question.cardId)}
-              />
-              <ChoiceList
-                question={question}
-                feedback={feedback}
-                pending={pending}
-                onPick={pick}
-              />
-            </section>
-          </div>
-          <footer className="study-footer">
-            <div className="feedback-copy" aria-live="polite">
-              {feedback ? (
-                <>
-                  <strong className={feedback.correct ? 'is-correct' : 'is-wrong'}>
-                    {feedback.correct ? <Check size={18} /> : <X size={18} />}
-                    {feedback.correct ? 'Correct' : 'Not quite'}
-                  </strong>
-                  {!feedback.correct ? <span>Answer: {question.answer}</span> : null}
-                </>
-              ) : (
-                <span>{pending ? 'Saving answer…' : 'Press 1–4 to answer'}</span>
-              )}
+        {done ? (
+          <section className="study-complete">
+            <div className="complete-card">
+              <h1>Session complete</h1>
+              <p>
+                {session.completed} {session.completed === 1 ? 'card is' : 'cards are'} done for now.
+                Misses will come back sooner; anything you confirmed can wait until its next due day.
+              </p>
+              <Button variant="primary" onClick={onLeave}>Back to deck</Button>
             </div>
-            {feedback ? (
-              <Button variant="primary" onClick={continueSession}>Continue</Button>
-            ) : null}
-          </footer>
-        </>
-      )}
+          </section>
+        ) : (
+          <>
+            <div className="study-scroll">
+              <section className="study-stage">
+                <StudyCard
+                  question={question}
+                  revealed={feedback !== null}
+                />
+                <ChoiceList
+                  question={question}
+                  feedback={feedback}
+                  pending={pending}
+                  onPick={pick}
+                />
+              </section>
+            </div>
+            <footer className="study-footer">
+              <div className="feedback-copy" aria-live="polite">
+                {feedback ? (
+                  <>
+                    <strong className={feedback.correct ? 'is-correct' : 'is-wrong'}>
+                      {feedback.correct ? <Check size={18} /> : <X size={18} />}
+                      {feedback.correct ? 'Correct' : 'Not quite'}
+                    </strong>
+                    {!feedback.correct ? (
+                      <span>Answer: {question.answer}. Back next round.</span>
+                    ) : (
+                      <span>
+                        {session.isWaiting(question.cardId)
+                          ? 'It skips the next set and comes back later.'
+                          : 'That’s enough for this session.'}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span>{pending ? 'Saving answer…' : 'Press 1–4 to answer'}</span>
+                )}
+              </div>
+              {feedback ? (
+                <Button variant="primary" onClick={continueSession}>Continue</Button>
+              ) : null}
+            </footer>
+          </>
+        )}
+      </div>
     </main>
   )
 }
@@ -158,8 +176,7 @@ export function StudySession({
 function StudyCard({
   question,
   revealed,
-  hits,
-}: Readonly<{ question: Question; revealed: boolean; hits: [number, number] }>) {
+}: Readonly<{ question: Question; revealed: boolean }>) {
   const cloze = question.prompt.kind === 'cloze' ? question.prompt.segments : null
   const clozeFront = question.clozeSide === 'front'
   const clozeBack = question.clozeSide === 'back'
@@ -187,14 +204,6 @@ function StudyCard({
           )}
         </section>
       ) : null}
-      <footer className="study-card__hits">
-        <span>{hits[0]} of {hits[1]} on this card</span>
-        <span className="hit-pips" aria-hidden="true">
-          {Array.from({ length: hits[1] }, (_, index) => (
-            <i key={index} className={index < hits[0] ? 'is-filled' : ''} />
-          ))}
-        </span>
-      </footer>
     </article>
   )
 }

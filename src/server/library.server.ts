@@ -1,5 +1,7 @@
 import { eq, isNull, max, sql } from 'drizzle-orm'
 
+import { buildStudyQueue } from '../core/queue'
+import { reviewedToday, studyStreak, sumStats } from '../core/stats'
 import type {
   Card,
   Deck,
@@ -237,7 +239,7 @@ export async function dueCards(
   deckId: number,
   now = new Date(),
 ): Promise<Card[]> {
-  return (await listCards(db, deckId)).filter((card) => isDue(card, now))
+  return buildStudyQueue(await listCards(db, deckId), now)
 }
 
 export async function getLibrarySnapshot(db: Db): Promise<LibrarySnapshot> {
@@ -261,7 +263,20 @@ export async function getLibrarySnapshot(db: Db): Promise<LibrarySnapshot> {
     stats[card.status] += 1
     if (isDue(card, now)) stats.due += 1
   }
-  return { folders: folderRows, decks: deckRows, cardsByDeck, statsByDeck }
+  const reviewRows = await db.select({ reviewedAt: reviews.reviewedAt }).from(reviews)
+  const reviewTimes = reviewRows.map((row) => row.reviewedAt)
+  const totals = sumStats(statsByDeck)
+  return {
+    folders: folderRows,
+    decks: deckRows,
+    cardsByDeck,
+    statsByDeck,
+    study: {
+      due: totals.due,
+      reviewedToday: reviewedToday(reviewTimes, now),
+      streak: studyStreak(reviewTimes, now),
+    },
+  }
 }
 
 function mapFolder(row: typeof folders.$inferSelect): Folder {

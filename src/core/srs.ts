@@ -42,8 +42,14 @@ export function applyAnswer(card: Card, correct: boolean, now = new Date()): Car
   else if (next.intervalDays < 3) next.intervalDays = 3
   else next.intervalDays = round(next.intervalDays * next.ease)
   next.ease = Math.min(3, round(next.ease + 0.1))
-  next.dueAt = addDays(now, next.intervalDays)
+  next.dueAt = addDays(now, fuzzedInterval(next.id, next.intervalDays))
   return next
+}
+
+function fuzzedInterval(cardId: number, intervalDays: number): number {
+  if (intervalDays < 3) return intervalDays
+  const offset = ((cardId * 31 + Math.round(intervalDays * 7)) % 3) - 1
+  return Math.max(1, intervalDays + offset)
 }
 
 function addDays(date: Date, days: number): string {

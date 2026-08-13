@@ -48,11 +48,18 @@ export interface DeckStats {
   due: number
 }
 
+export interface StudyStats {
+  due: number
+  reviewedToday: number
+  streak: number
+}
+
 export interface LibrarySnapshot {
   folders: Folder[]
   decks: Deck[]
   cardsByDeck: Record<number, Card[]>
   statsByDeck: Record<number, DeckStats>
+  study: StudyStats
 }
 
 export interface TextSegment {

@@ -60,4 +60,17 @@ describe('spaced repetition', () => {
     applyAnswer(original, false, NOW)
     expect(original.reps).toBe(0)
   })
+
+  it('spreads longer review dates so cards do not all return on the same day', () => {
+    const first = applyAnswer({ ...card('mastered'), id: 1, intervalDays: 1 }, true, NOW)
+    const second = applyAnswer({ ...card('mastered'), id: 2, intervalDays: 1 }, true, NOW)
+    const firstDays = (new Date(first.dueAt!).getTime() - NOW.getTime()) / 86_400_000
+    const secondDays = (new Date(second.dueAt!).getTime() - NOW.getTime()) / 86_400_000
+
+    expect(first.intervalDays).toBe(3)
+    expect(second.intervalDays).toBe(3)
+    expect(Math.abs(firstDays - secondDays)).toBeGreaterThan(0)
+    expect(firstDays).toBeGreaterThanOrEqual(2)
+    expect(firstDays).toBeLessThanOrEqual(4)
+  })
 })

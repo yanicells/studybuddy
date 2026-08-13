@@ -1,110 +1,145 @@
 import type { Card } from './types'
 
-const FIRST_WAVE = 8
-const NEXT_WAVE = 12
-const MISS_GAP = 2
-const FIRST_HIT_GAP = 3
-const SECOND_HIT_GAP = 8
-
-interface Progress {
+interface Track {
   correct: number
   wrong: number
   masteredAtStart: boolean
+  retired: boolean
 }
 
 export class Session {
   readonly total: number
-  private queue: number[] = []
+  private readonly startedWithNew: boolean
+  private roundIndex = 1
   private pool: number[]
-  private progress = new Map<number, Progress>()
-  private shown = 0
-  private waves = 0
+  private queue: number[] = []
+  private waiting = new Map<number, number>()
+  private track = new Map<number, Track>()
+  private answeredThisRound = 0
+  private sizeThisRound = 0
 
   constructor(cards: Card[]) {
-    const priority = { learning: 0, new: 1, mastered: 2 } as const
-    const sorted = [...cards].sort(
-      (left, right) =>
-        priority[left.status] - priority[right.status] || left.position - right.position,
-    )
-    this.total = sorted.length
-    this.pool = sorted.map((card) => card.id)
-    for (const card of sorted) {
-      this.progress.set(card.id, {
+    this.total = cards.length
+    this.startedWithNew = cards.some((card) => card.status === 'new')
+    this.pool = cards.map((card) => card.id)
+    for (const card of cards) {
+      this.track.set(card.id, {
         correct: 0,
         wrong: 0,
         masteredAtStart: card.status === 'mastered',
+        retired: false,
       })
     }
-    this.introduceWave()
+    this.fillRound()
   }
 
   nextCard(): number | null {
-    if (this.queue.length === 0) this.introduceWave()
+    while (this.queue.length === 0) {
+      if (this.pool.length > 0) {
+        this.roundIndex += 1
+        this.fillRound()
+        continue
+      }
+      if (this.waiting.size === 0) return null
+      const soonest = Math.min(...this.waiting.values())
+      this.roundIndex = Math.max(this.roundIndex + 1, soonest)
+      this.fillRound()
+      if (this.queue.length === 0) return null
+    }
     return this.queue.shift() ?? null
   }
 
   answer(cardId: number, correct: boolean): void {
-    const progress = this.progress.get(cardId) ?? {
+    const item = this.track.get(cardId) ?? {
       correct: 0,
       wrong: 0,
       masteredAtStart: false,
+      retired: false,
     }
-    if (correct) progress.correct += 1
-    else progress.wrong += 1
-    this.progress.set(cardId, progress)
-
-    const done = progress.masteredAtStart ? correct : progress.correct >= 2
-    if (!done) {
-      const gap = correct
-        ? progress.correct <= 1
-          ? FIRST_HIT_GAP
-          : SECOND_HIT_GAP
-        : MISS_GAP
-      this.queue.splice(Math.min(gap, this.queue.length), 0, cardId)
+    this.answeredThisRound += 1
+    if (correct) {
+      item.correct += 1
+      if (shouldRetire(item)) item.retired = true
+      else this.waiting.set(cardId, this.roundIndex + 2)
+    } else {
+      item.wrong += 1
+      item.correct = 0
+      this.waiting.set(cardId, this.roundIndex + 1)
     }
-    this.shown += 1
+    this.track.set(cardId, item)
   }
 
-  get answeredCount(): number {
-    return this.shown
+  get round(): number {
+    return this.roundIndex
+  }
+
+  get roundLength(): number {
+    return this.sizeThisRound
+  }
+
+  get roundAnswered(): number {
+    return this.answeredThisRound
   }
 
   get remaining(): number {
-    return this.queue.length + this.pool.length
-  }
-
-  get wave(): number {
-    return Math.max(this.waves, 1)
+    return this.queue.length + this.pool.length + this.waiting.size
   }
 
   get completed(): number {
     let count = 0
-    for (const progress of this.progress.values()) {
-      if (
-        (progress.masteredAtStart && progress.correct >= 1) ||
-        (!progress.masteredAtStart && progress.correct >= 2)
-      ) {
-        count += 1
-      }
+    for (const item of this.track.values()) {
+      if (item.retired) count += 1
     }
     return count
   }
 
+  isWaiting(cardId: number): boolean {
+    return this.waiting.has(cardId)
+  }
+
   cardHits(cardId: number): [number, number] {
-    const progress = this.progress.get(cardId) ?? {
+    const item = this.track.get(cardId) ?? {
       correct: 0,
       wrong: 0,
       masteredAtStart: false,
+      retired: false,
     }
-    const needed = progress.masteredAtStart ? 1 : 2
-    return [Math.min(progress.correct, needed), needed]
+    const needed = hitsNeeded(item)
+    return [Math.min(item.correct, needed), needed]
   }
 
-  private introduceWave(): boolean {
-    if (this.pool.length === 0) return false
-    const size = this.waves === 0 ? FIRST_WAVE : NEXT_WAVE
-    this.queue.push(...this.pool.splice(0, size))
-    this.waves += 1
-    return true
+  private fillRound(): void {
+    const size = roundSize(this.roundIndex, this.startedWithNew)
+    const next: number[] = []
+    const due = [...this.waiting.entries()]
+      .filter(([, dueRound]) => dueRound <= this.roundIndex)
+      .sort((left, right) => left[1] - right[1] || left[0] - right[0])
+    for (const [id] of due) {
+      if (next.length >= size) break
+      this.waiting.delete(id)
+      next.push(id)
+    }
+    while (next.length < size && this.pool.length > 0) {
+      next.push(this.pool.shift()!)
+    }
+    this.queue = next
+    this.sizeThisRound = next.length
+    this.answeredThisRound = 0
   }
+}
+
+function roundSize(round: number, startedWithNew: boolean): number {
+  if (round === 1) return startedWithNew ? 8 : 12
+  if (round === 2) return 12
+  if (round === 3) return 15
+  return 20
+}
+
+function hitsNeeded(item: Track): number {
+  if (item.masteredAtStart && item.wrong === 0) return 1
+  return 2
+}
+
+function shouldRetire(item: Track): boolean {
+  return item.correct >= hitsNeeded(item)
 }
