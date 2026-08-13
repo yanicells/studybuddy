@@ -4,6 +4,7 @@ import { useRouter } from '@tanstack/react-router'
 
 import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
+import { withBulletPrefix } from '../../core/blocks'
 import { wrapMarks } from '../../core/import'
 import type { LibrarySnapshot } from '../../core/types'
 import {
@@ -66,11 +67,13 @@ function LibraryDialogContent({
   )
   const [back, setBack] = useState(() =>
     dialog.kind === 'card' && dialog.card
-      ? wrapMarks(
-          dialog.card.back,
-          dialog.card.highlights
-            .filter((highlight) => highlight.side === 'back')
-            .map((highlight) => highlight.text),
+      ? withBulletPrefix(
+          wrapMarks(
+            dialog.card.back,
+            dialog.card.highlights
+              .filter((highlight) => highlight.side === 'back')
+              .map((highlight) => highlight.text),
+          ),
         )
       : '',
   )
@@ -244,7 +247,7 @@ function LibraryDialogContent({
     return (
       <Dialog
         title="Import cards"
-        description="Put the prompt first, then start answer lines with a dash. Mark quiz terms with ==double equals==."
+        description="Put the prompt first, then start answer lines with a dash. Bold quiz terms with **asterisks**. Dashes stay bullets."
         onClose={onClose}
         wide
       >
@@ -255,7 +258,7 @@ function LibraryDialogContent({
               rows={12}
               value={importText}
               onChange={(event) => setImportText(event.target.value)}
-              placeholder={'The ==mitochondria== is the powerhouse of the cell\n- mitochondria'}
+              placeholder={'The **mitochondria** is the powerhouse of the cell\n- mitochondria'}
               required
             />
           </label>
@@ -288,7 +291,7 @@ function LibraryDialogContent({
           <textarea rows={5} value={front} onChange={(event) => setFront(event.target.value)} required />
         </label>
         <label>
-          <span>Back <small>Use ==word== to mark quiz terms</small></span>
+          <span>Back <small>- bullet · **bold**</small></span>
           <textarea rows={5} value={back} onChange={(event) => setBack(event.target.value)} />
         </label>
         <DialogError error={error} />

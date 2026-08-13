@@ -1,5 +1,6 @@
-import '@fontsource-variable/bricolage-grotesque'
-import '@fontsource-variable/manrope'
+import '@fontsource/ibm-plex-sans/400.css'
+import '@fontsource/ibm-plex-sans/500.css'
+import '@fontsource/ibm-plex-sans/600.css'
 import '@fontsource/ibm-plex-mono/400.css'
 
 import {
@@ -22,7 +23,7 @@ export const Route = createRootRoute({
         name: 'description',
         content: 'A focused flashcard library for short, effective study sessions.',
       },
-      { name: 'theme-color', content: '#f2f5f7' },
+      { name: 'theme-color', content: '#f4f4f3' },
     ],
     links: [{ rel: 'stylesheet', href: stylesHref }],
   }),

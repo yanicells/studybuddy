@@ -1,8 +1,8 @@
 import { ArrowLeft, Check, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
-import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
+import { CardText } from '../../components/CardText'
 import { Progress } from '../../components/ProgressBars'
 import { buildQuestion } from '../../core/quiz'
 import { Session } from '../../core/session'
@@ -109,11 +109,8 @@ export function StudySession({
       {done ? (
         <section className="study-complete">
           <div className="complete-card">
-            <AppIcon size="large" />
-            <span className="eyebrow">Session complete</span>
-            <h1>That’s the set.</h1>
+            <h1>Session complete</h1>
             <p>Come back tomorrow for the cards that graduated.</p>
-            <Progress value={1} label="Session complete" />
             <Button variant="primary" onClick={onLeave}>Back to deck</Button>
           </div>
         </section>
@@ -170,31 +167,28 @@ function StudyCard({
 
   return (
     <article className="study-card">
-      <div className="study-card__edge" aria-hidden="true" />
       <section>
-        <span className="section-kicker">Question</span>
         {clozeFront && cloze ? (
           <Cloze segments={cloze} revealed={revealed} />
         ) : (
-          <p className="study-card__question">{question.front}</p>
+          <div className="study-card__question">
+            <CardText text={question.front} phrases={[]} />
+          </div>
         )}
       </section>
       {showAnswer ? (
         <section className="study-card__answer">
-          <span className="section-kicker">Answer</span>
           {clozeBack && cloze ? (
-            <Cloze segments={cloze} revealed={revealed} bullets />
+            <Cloze segments={cloze} revealed={revealed} />
           ) : revealed && question.back.trim() ? (
-            question.back.split('\n').filter(Boolean).map((line, index) => (
-              <p key={`${index}-${line}`}><span aria-hidden="true">•</span>{line}</p>
-            ))
+            <CardText text={question.back} phrases={[]} asBack />
           ) : (
             <p className="answer-placeholder">Pick the matching answer.</p>
           )}
         </section>
       ) : null}
       <footer className="study-card__hits">
-        <span>This card · {hits[0]} of {hits[1]}</span>
+        <span>{hits[0]} of {hits[1]} on this card</span>
         <span className="hit-pips" aria-hidden="true">
           {Array.from({ length: hits[1] }, (_, index) => (
             <i key={index} className={index < hits[0] ? 'is-filled' : ''} />
@@ -208,19 +202,17 @@ function StudyCard({
 function Cloze({
   segments,
   revealed,
-  bullets = false,
-}: Readonly<{ segments: Segment[]; revealed: boolean; bullets?: boolean }>) {
+}: Readonly<{ segments: Segment[]; revealed: boolean }>) {
   const lines = splitSegmentsByLine(segments)
   return (
     <div className="cloze-passage">
       {lines.map((line, lineIndex) => (
         <p key={lineIndex}>
-          {bullets ? <span aria-hidden="true">•</span> : null}
           {line.map((segment, segmentIndex) =>
             segment.kind === 'text' ? (
               <span key={segmentIndex}>{segment.text}</span>
             ) : revealed ? (
-              <mark key={segmentIndex} className={segment.target ? 'is-target' : ''}>{segment.text}</mark>
+              <strong key={segmentIndex} className={segment.target ? 'is-target' : ''}>{segment.text}</strong>
             ) : (
               <span
                 key={segmentIndex}

@@ -110,98 +110,6 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   const title = selectedFolder?.name ?? selectedDeck?.name ?? 'Library'
   const due = selectedDeck ? (library.statsByDeck[selectedDeck.id]?.due ?? 0) : 0
 
-  const actions = (
-    <>
-      {selectedFolder ? (
-        <>
-          <Button
-            variant="ghost"
-            size="small"
-            icon={<Pencil size={16} />}
-            onClick={() =>
-              setDialog({
-                kind: 'name',
-                entity: 'folder',
-                mode: 'rename',
-                id: selectedFolder.id,
-                parentId: selectedFolder.parentId,
-                initialName: selectedFolder.name,
-              })
-            }
-          >Rename</Button>
-          <Button variant="ghost" size="small" onClick={() => setDialog({ kind: 'move', entity: 'folder', id: selectedFolder.id })}>Move</Button>
-          <Button
-            variant="ghost"
-            size="small"
-            icon={<Trash2 size={16} />}
-            onClick={() =>
-              setDialog({
-                kind: 'confirm',
-                entity: 'folder',
-                id: selectedFolder.id,
-                title: 'Delete folder?',
-                description: 'Every folder, deck, card, and review inside will be removed.',
-              })
-            }
-          >Delete</Button>
-        </>
-      ) : null}
-      {selectedDeck ? (
-        <>
-          <Button
-            variant="primary"
-            size="small"
-            icon={<Play size={16} fill="currentColor" />}
-            disabled={startingStudy}
-            onClick={() => void beginStudy()}
-          >
-            {startingStudy ? 'Starting…' : due > 0 ? `Study ${due}` : 'Study'}
-          </Button>
-          <Button
-            size="small"
-            icon={<Import size={16} />}
-            onClick={() => setDialog({ kind: 'import', deckId: selectedDeck.id, folderId: selectedDeck.folderId })}
-          >Import</Button>
-          <Button
-            variant="ghost"
-            size="small"
-            icon={<Plus size={16} />}
-            onClick={() => setDialog({ kind: 'card', deckId: selectedDeck.id, card: null })}
-          >Card</Button>
-          <Button
-            variant="ghost"
-            size="small"
-            onClick={() =>
-              setDialog({
-                kind: 'name',
-                entity: 'deck',
-                mode: 'rename',
-                id: selectedDeck.id,
-                parentId: selectedDeck.folderId,
-                initialName: selectedDeck.name,
-              })
-            }
-          >Rename</Button>
-          <Button variant="ghost" size="small" onClick={() => setDialog({ kind: 'move', entity: 'deck', id: selectedDeck.id })}>Move</Button>
-          <Button
-            variant="ghost"
-            size="small"
-            icon={<Trash2 size={16} />}
-            onClick={() =>
-              setDialog({
-                kind: 'confirm',
-                entity: 'deck',
-                id: selectedDeck.id,
-                title: 'Delete deck?',
-                description: 'Every card and review in this deck will be removed.',
-              })
-            }
-          >Delete</Button>
-        </>
-      ) : null}
-    </>
-  )
-
   return (
     <main className="app-shell">
       <button
@@ -213,7 +121,9 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       <aside className={`library-rail ${drawerOpen ? 'is-open' : ''}`}>
         <div className="rail-brand">
           <AppIcon />
-          <div><strong>Studybuddy</strong><span>Short sessions, clear recall</span></div>
+          <div>
+            <strong>Studybuddy</strong>
+          </div>
           <Button className="rail-close" variant="ghost" size="small" aria-label="Close library" onClick={() => setDrawerOpen(false)}>
             <X size={18} />
           </Button>
@@ -264,27 +174,143 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           }
           onSelect={select}
         />
-        <div className="rail-footnote"><span>Local-first</span><span>SQLite</span></div>
       </aside>
 
       <section className="workspace">
-        <div className="mobile-bar">
-          <Button variant="ghost" size="small" aria-label="Open library" onClick={() => setDrawerOpen(true)}><Menu size={20} /></Button>
-          <AppIcon size="small" />
-          <strong>Studybuddy</strong>
-        </div>
         <header className="workspace-header">
+          <Button
+            className="rail-open"
+            variant="ghost"
+            size="small"
+            aria-label="Open library"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <Menu size={20} />
+          </Button>
           <div className="workspace-title">
-            <span className="eyebrow">{selectedDeck ? 'Deck' : selectedFolder ? 'Folder' : 'Workspace'}</span>
             <h1>{title}</h1>
           </div>
-          <div className="header-actions">{actions}</div>
-          {(selectedDeck || selectedFolder) ? (
-            <details className="mobile-actions-menu">
-              <summary aria-label="Open actions"><Ellipsis size={20} /></summary>
-              <div>{actions}</div>
-            </details>
-          ) : null}
+          <div className="header-actions">
+            {selectedDeck ? (
+              <Button
+                variant="primary"
+                size="small"
+                icon={<Play size={16} fill="currentColor" />}
+                disabled={startingStudy}
+                onClick={() => void beginStudy()}
+              >
+                {startingStudy ? 'Starting…' : due > 0 ? `Study ${due}` : 'Study'}
+              </Button>
+            ) : null}
+            {selectedDeck ? (
+              <>
+                <Button
+                  className="header-actions__wide"
+                  size="small"
+                  icon={<Import size={16} />}
+                  onClick={() => setDialog({ kind: 'import', deckId: selectedDeck.id, folderId: selectedDeck.folderId })}
+                >Import</Button>
+                <Button
+                  className="header-actions__wide"
+                  variant="ghost"
+                  size="small"
+                  icon={<Plus size={16} />}
+                  onClick={() => setDialog({ kind: 'card', deckId: selectedDeck.id, card: null })}
+                >Card</Button>
+              </>
+            ) : null}
+            {selectedFolder || selectedDeck ? (
+              <details className="actions-menu">
+                <summary aria-label="More actions"><Ellipsis size={18} /></summary>
+                <div>
+                  {selectedDeck ? (
+                    <>
+                      <Button
+                        className="header-actions__narrow"
+                        size="small"
+                        icon={<Import size={16} />}
+                        onClick={() => setDialog({ kind: 'import', deckId: selectedDeck.id, folderId: selectedDeck.folderId })}
+                      >Import</Button>
+                      <Button
+                        className="header-actions__narrow"
+                        variant="ghost"
+                        size="small"
+                        icon={<Plus size={16} />}
+                        onClick={() => setDialog({ kind: 'card', deckId: selectedDeck.id, card: null })}
+                      >Card</Button>
+                    </>
+                  ) : null}
+                  {selectedFolder ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        icon={<Pencil size={16} />}
+                        onClick={() =>
+                          setDialog({
+                            kind: 'name',
+                            entity: 'folder',
+                            mode: 'rename',
+                            id: selectedFolder.id,
+                            parentId: selectedFolder.parentId,
+                            initialName: selectedFolder.name,
+                          })
+                        }
+                      >Rename</Button>
+                      <Button variant="ghost" size="small" onClick={() => setDialog({ kind: 'move', entity: 'folder', id: selectedFolder.id })}>Move</Button>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        icon={<Trash2 size={16} />}
+                        onClick={() =>
+                          setDialog({
+                            kind: 'confirm',
+                            entity: 'folder',
+                            id: selectedFolder.id,
+                            title: 'Delete folder?',
+                            description: 'Every folder, deck, card, and review inside will be removed.',
+                          })
+                        }
+                      >Delete</Button>
+                    </>
+                  ) : null}
+                  {selectedDeck ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        onClick={() =>
+                          setDialog({
+                            kind: 'name',
+                            entity: 'deck',
+                            mode: 'rename',
+                            id: selectedDeck.id,
+                            parentId: selectedDeck.folderId,
+                            initialName: selectedDeck.name,
+                          })
+                        }
+                      >Rename</Button>
+                      <Button variant="ghost" size="small" onClick={() => setDialog({ kind: 'move', entity: 'deck', id: selectedDeck.id })}>Move</Button>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        icon={<Trash2 size={16} />}
+                        onClick={() =>
+                          setDialog({
+                            kind: 'confirm',
+                            entity: 'deck',
+                            id: selectedDeck.id,
+                            title: 'Delete deck?',
+                            description: 'Every card and review in this deck will be removed.',
+                          })
+                        }
+                      >Delete</Button>
+                    </>
+                  ) : null}
+                </div>
+              </details>
+            ) : null}
+          </div>
         </header>
         <div className="workspace-scroll">
           <LibraryContent

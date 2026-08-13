@@ -1,10 +1,11 @@
-import { ArrowRight, Edit3, Folder, Layers3, Trash2 } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ArrowRight, Folder, Layers3, Pencil, Trash2 } from 'lucide-react'
 
-import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
-import { HighlightedText } from '../../components/HighlightedText'
+import { CardText } from '../../components/CardText'
 import { StackedProgress } from '../../components/ProgressBars'
-import type { Card, DeckStats, LibrarySnapshot, Side, Status } from '../../core/types'
+import { phrasesForSide } from '../../core/quiz'
+import { EMPTY_STATS, type Card, type DeckStats, type LibrarySnapshot, type Status } from '../../core/types'
 import type { LibraryDialog, Selection, StatusFilter } from './library.types'
 
 interface LibraryContentProps {
@@ -29,28 +30,12 @@ function LibraryLanding({ library }: Readonly<{ library: LibrarySnapshot }>) {
   )
   return (
     <section className="library-landing">
-      <div className="landing-copy">
-        <span className="eyebrow">Your study library</span>
-        <h1>One small set.<br />One clear session.</h1>
-        <p>
-          Choose a deck from the library, or shape a new one from the notes you already have.
-        </p>
-        <div className="library-totals" aria-label="Library totals">
-          <span><strong>{library.decks.length}</strong> decks</span>
-          <span><strong>{cardCount}</strong> cards</span>
-        </div>
-      </div>
-      <div className="index-stack" aria-hidden="true">
-        <div className="index-card index-card--back" />
-        <div className="index-card index-card--middle" />
-        <div className="index-card index-card--front">
-          <AppIcon size="large" />
-          <span>Pick a deck</span>
-          <i />
-          <i />
-          <i />
-        </div>
-      </div>
+      <p>Select a deck to review, or create one in the library.</p>
+      <p className="library-totals">
+        {library.decks.length} {library.decks.length === 1 ? 'deck' : 'decks'}
+        {' · '}
+        {cardCount} {cardCount === 1 ? 'card' : 'cards'}
+      </p>
     </section>
   )
 }
@@ -73,13 +58,13 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
           key={folder.id}
           onClick={() => onSelect({ kind: 'folder', id: folder.id })}
         >
-          <span className="tile-icon"><Folder size={20} /></span>
+          <span className="tile-icon"><Folder size={18} /></span>
           <span><strong>{folder.name}</strong><small>Folder</small></span>
-          <ArrowRight size={17} />
+          <ArrowRight size={16} />
         </button>
       ))}
       {decks.map((deck) => {
-        const stats = library.statsByDeck[deck.id] ?? emptyStats()
+        const stats = library.statsByDeck[deck.id] ?? EMPTY_STATS
         const total = totalCards(stats)
         return (
           <button
@@ -88,13 +73,13 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
             key={deck.id}
             onClick={() => onSelect({ kind: 'deck', id: deck.id })}
           >
-            <span className="tile-icon"><Layers3 size={20} /></span>
+            <span className="tile-icon"><Layers3 size={18} /></span>
             <span className="deck-tile__copy">
               <strong>{deck.name}</strong>
               <small>{stats.due} due · {total} {total === 1 ? 'card' : 'cards'}</small>
               <StackedProgress stats={stats} />
             </span>
-            <ArrowRight size={17} />
+            <ArrowRight size={16} />
           </button>
         )
       })}
@@ -105,17 +90,17 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
 function DeckContent({ library, selection, filter, onFilter, onDialog }: LibraryContentProps) {
   if (selection?.kind !== 'deck') return null
   const cards = library.cardsByDeck[selection.id] ?? []
-  const stats = library.statsByDeck[selection.id] ?? emptyStats()
+  const stats = library.statsByDeck[selection.id] ?? EMPTY_STATS
   const filtered = filter === 'all' ? cards : cards.filter((card) => card.status === filter)
 
   return (
     <section className="deck-content">
       <div className="deck-overview">
-        <div className="deck-overview__summary">
-          <span><strong>{stats.due}</strong><small>Due now</small></span>
-          <span><strong>{stats.learning}</strong><small>Learning</small></span>
-          <span><strong>{stats.mastered}</strong><small>Mastered</small></span>
-        </div>
+        <p className="deck-overview__summary">
+          <span><strong>{stats.due}</strong> due</span>
+          <span><strong>{stats.learning}</strong> learning</span>
+          <span><strong>{stats.mastered}</strong> mastered</span>
+        </p>
         <StackedProgress stats={stats} />
       </div>
 
@@ -164,20 +149,12 @@ function DeckContent({ library, selection, filter, onFilter, onDialog }: Library
 function CardNote({ card, onDialog }: Readonly<{ card: Card; onDialog: (dialog: LibraryDialog) => void }>) {
   return (
     <article className="note-card">
-      <div className="note-card__pin" aria-hidden="true" />
       <div className="note-card__front">
-        <span className="section-kicker">Prompt</span>
-        <p><HighlightedText text={card.front} phrases={phrases(card, 'front')} /></p>
+        <CardText text={card.front} phrases={phrasesForSide(card, 'front')} />
       </div>
       {card.back.trim() ? (
         <div className="note-card__back">
-          <span className="section-kicker">Answer</span>
-          {card.back.split('\n').filter(Boolean).map((line, index) => (
-            <p key={`${index}-${line}`}>
-              <span aria-hidden="true">•</span>
-              <HighlightedText text={line} phrases={phrases(card, 'back')} />
-            </p>
-          ))}
+          <CardText text={card.back} phrases={phrasesForSide(card, 'back')} asBack />
         </div>
       ) : null}
       <footer>
@@ -186,7 +163,7 @@ function CardNote({ card, onDialog }: Readonly<{ card: Card; onDialog: (dialog: 
           <Button
             variant="ghost"
             size="small"
-            icon={<Edit3 size={15} />}
+            icon={<Pencil size={15} />}
             onClick={() => onDialog({ kind: 'card', deckId: card.deckId, card })}
           >
             Edit
@@ -217,7 +194,7 @@ function StatusChip({ status }: Readonly<{ status: Status }>) {
   return <span className={`status-chip status-chip--${status}`}>{capitalize(status)}</span>
 }
 
-function EmptyState({ icon, title, body }: Readonly<{ icon: React.ReactNode; title: string; body: string }>) {
+function EmptyState({ icon, title, body }: Readonly<{ icon: ReactNode; title: string; body: string }>) {
   return (
     <div className="empty-state">
       <span>{icon}</span>
@@ -227,16 +204,8 @@ function EmptyState({ icon, title, body }: Readonly<{ icon: React.ReactNode; tit
   )
 }
 
-function phrases(card: Card, side: Side): string[] {
-  return card.highlights.filter((highlight) => highlight.side === side).map((highlight) => highlight.text)
-}
-
 function totalCards(stats: DeckStats): number {
   return stats.new + stats.learning + stats.mastered
-}
-
-function emptyStats(): DeckStats {
-  return { new: 0, learning: 0, mastered: 0, due: 0 }
 }
 
 function capitalize(value: string): string {

@@ -4,7 +4,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
 
-  await expect(page.getByRole('heading', { name: 'One small set. One clear session.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
   await page.getByRole('button', { name: 'Open library' }).click()
@@ -12,7 +12,6 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await page.getByRole('button', { name: /Architecture vs Organization/ }).click()
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 
-  await page.getByLabel('Open actions').click()
   await page.getByRole('button', { name: /Study/ }).click()
   await expect(page.getByLabel('Answer choices')).toBeVisible()
   await expect(page.getByLabel('Answer choices').getByRole('button')).toHaveCount(4)
@@ -23,7 +22,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await page.getByRole('button', { name: 'Continue' }).click()
   await page.getByRole('button', { name: 'Leave' }).click()
 
-  await page.getByLabel('Open actions').click()
+  await page.getByLabel('More actions').click()
   await page.getByRole('button', { name: 'Card', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'New card' })).toBeVisible()
   await page.getByRole('dialog', { name: 'New card' }).getByRole('button', { name: 'Cancel' }).click()
