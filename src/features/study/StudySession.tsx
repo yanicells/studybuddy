@@ -7,7 +7,7 @@ import { Progress } from '../../components/ProgressBars'
 import { buildQuestion } from '../../core/quiz'
 import { Session } from '../../core/session'
 import { applyAnswer } from '../../core/srs'
-import type { Card, Question, Segment } from '../../core/types'
+import type { Card, Question, QuestionStep, Segment } from '../../core/types'
 import { recordAnswerFn } from '../library/library.functions'
 
 interface StudySessionProps {
@@ -34,30 +34,45 @@ export function StudySession({
   const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
   const [question, setQuestion] = useState<Question | null>(() => nextQuestion(session, cards))
   const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [stepIndex, setStepIndex] = useState(0)
+  const [missed, setMissed] = useState(false)
   const answering = useRef(false)
   const saves = useRef(new Map<number, Promise<void>>())
   const done = question === null
+  const step = question?.steps[stepIndex]
+  const lastStep = question != null && stepIndex === question.steps.length - 1
 
   const pick = useCallback(
     (index: number) => {
-      if (feedback || answering.current || !question || index >= question.choices.length) return
+      const current = question?.steps[stepIndex]
+      if (feedback || answering.current || !question || !current || index >= current.choices.length) return
       answering.current = true
-      const correct = index === question.answerIndex
-      const card = cards.get(question.cardId)
-      session.answer(question.cardId, correct)
-      if (card) cards.set(card.id, applyAnswer(card, correct))
+      const correct = index === current.answerIndex
+      const finished = stepIndex === question.steps.length - 1
+      if (!correct) setMissed(true)
       setFeedback({ picked: index, correct })
-      persistAnswer(saves.current, cards, question.cardId, correct, onNotice)
+      if (!finished) return
+      const cardCorrect = !missed && correct
+      const card = cards.get(question.cardId)
+      session.answer(question.cardId, cardCorrect)
+      if (card) cards.set(card.id, applyAnswer(card, cardCorrect))
+      persistAnswer(saves.current, cards, question.cardId, cardCorrect, onNotice)
     },
-    [cards, feedback, onNotice, question, session],
+    [cards, feedback, missed, onNotice, question, session, stepIndex],
   )
 
   const continueSession = useCallback(() => {
-    if (!feedback) return
+    if (!feedback || !question) return
     answering.current = false
     setFeedback(null)
+    if (stepIndex + 1 < question.steps.length) {
+      setStepIndex(stepIndex + 1)
+      return
+    }
+    setStepIndex(0)
+    setMissed(false)
     setQuestion(nextQuestion(session, cards))
-  }, [cards, feedback, session])
+  }, [cards, feedback, question, session, stepIndex])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -85,7 +100,10 @@ export function StudySession({
   }, [continueSession, feedback, onLeave, pick])
 
   const roundLength = Math.max(session.roundLength, 1)
-  const roundShown = feedback ? session.roundAnswered : Math.min(session.roundAnswered + 1, roundLength)
+  const roundShown =
+    feedback && lastStep
+      ? session.roundAnswered
+      : Math.min(session.roundAnswered + 1, roundLength)
   const progress = done ? 1 : roundShown / roundLength
 
   return (
@@ -126,31 +144,42 @@ export function StudySession({
               <section className="study-stage">
                 <StudyCard
                   question={question}
-                  revealed={feedback !== null}
+                  currentStep={stepIndex}
+                  answered={feedback !== null}
                 />
-                <ChoiceList
-                  question={question}
-                  feedback={feedback}
-                  onPick={pick}
-                />
+                {step ? (
+                  <ChoiceList
+                    step={step}
+                    feedback={feedback}
+                    onPick={pick}
+                  />
+                ) : null}
               </section>
             </div>
             <footer className="study-footer">
               <div className="feedback-copy" aria-live="polite">
-                {feedback ? (
+                {feedback && step ? (
                   <>
                     <strong className={feedback.correct ? 'is-correct' : 'is-wrong'}>
                       {feedback.correct ? <Check size={18} /> : <X size={18} />}
                       {feedback.correct ? 'Correct' : 'Not quite'}
                     </strong>
-                    {!feedback.correct ? (
-                      <span>Answer: {question.answer}. Back next round.</span>
+                    {lastStep ? (
+                      !missed && feedback.correct ? (
+                        <span>
+                          {session.isWaiting(question.cardId)
+                            ? 'It skips the next set and comes back later.'
+                            : 'That’s enough for this session.'}
+                        </span>
+                      ) : !feedback.correct ? (
+                        <span>Answer: {step.answer}. Back next round.</span>
+                      ) : (
+                        <span>Another blank was missed. Back next round.</span>
+                      )
+                    ) : !feedback.correct ? (
+                      <span>Answer: {step.answer}.</span>
                     ) : (
-                      <span>
-                        {session.isWaiting(question.cardId)
-                          ? 'It skips the next set and comes back later.'
-                          : 'That’s enough for this session.'}
-                      </span>
+                      <span>Next blank.</span>
                     )}
                   </>
                 ) : (
@@ -170,18 +199,20 @@ export function StudySession({
 
 function StudyCard({
   question,
-  revealed,
-}: Readonly<{ question: Question; revealed: boolean }>) {
+  currentStep,
+  answered,
+}: Readonly<{ question: Question; currentStep: number; answered: boolean }>) {
   const cloze = question.prompt.kind === 'cloze' ? question.prompt.segments : null
   const clozeFront = question.clozeSide === 'front'
   const clozeBack = question.clozeSide === 'back'
-  const showAnswer = clozeBack || revealed || question.prompt.kind === 'front'
+  const cardGraded = answered && currentStep === question.steps.length - 1
+  const showAnswer = clozeBack || cardGraded || question.prompt.kind === 'front'
 
   return (
     <article className="study-card">
       <section>
         {clozeFront && cloze ? (
-          <Cloze segments={cloze} revealed={revealed} />
+          <Cloze segments={cloze} currentStep={currentStep} answered={answered} asList={false} />
         ) : (
           <div className="study-card__question">
             <CardText text={question.front} phrases={[]} />
@@ -191,8 +222,8 @@ function StudyCard({
       {showAnswer ? (
         <section className="study-card__answer">
           {clozeBack && cloze ? (
-            <Cloze segments={cloze} revealed={revealed} />
-          ) : revealed && question.back.trim() ? (
+            <Cloze segments={cloze} currentStep={currentStep} answered={answered} asList />
+          ) : answered && question.back.trim() ? (
             <CardText text={question.back} phrases={[]} asBack />
           ) : (
             <p className="answer-placeholder">Pick the matching answer.</p>
@@ -205,46 +236,69 @@ function StudyCard({
 
 function Cloze({
   segments,
-  revealed,
-}: Readonly<{ segments: Segment[]; revealed: boolean }>) {
-  const lines = splitSegmentsByLine(segments)
+  currentStep,
+  answered,
+  asList,
+}: Readonly<{ segments: Segment[]; currentStep: number; answered: boolean; asList: boolean }>) {
+  const lines = splitSegmentsByLine(segments).map((line) => (asList ? withoutLineBullet(line) : line))
+  const total = segments.filter((segment) => segment.kind === 'blank').length
+  const items = lines.map((line, lineIndex) => {
+    const content = (
+      <ClozeLine segments={line} currentStep={currentStep} answered={answered} total={total} />
+    )
+    return asList ? <li key={lineIndex}>{content}</li> : <p key={lineIndex}>{content}</p>
+  })
   return (
     <div className="cloze-passage">
-      {lines.map((line, lineIndex) => (
-        <p key={lineIndex}>
-          {line.map((segment, segmentIndex) =>
-            segment.kind === 'text' ? (
-              <span key={segmentIndex}>{segment.text}</span>
-            ) : revealed ? (
-              <strong key={segmentIndex} className={segment.target ? 'is-target' : ''}>{segment.text}</strong>
-            ) : (
-              <span
-                key={segmentIndex}
-                className={`cloze-blank ${segment.target ? 'is-target' : ''}`}
-                style={{ '--blank-length': Math.min(24, Math.max(6, segment.text.length)) } as React.CSSProperties}
-                aria-label="blank"
-              />
-            ),
-          )}
-        </p>
-      ))}
+      {asList ? <ul role="list">{items}</ul> : items}
     </div>
   )
 }
 
+function ClozeLine({
+  segments,
+  currentStep,
+  answered,
+  total,
+}: Readonly<{ segments: Segment[]; currentStep: number; answered: boolean; total: number }>) {
+  return segments.map((segment, segmentIndex) => {
+    if (segment.kind === 'text') {
+      return <span key={segmentIndex}>{segment.text}</span>
+    }
+    const current = segment.step === currentStep
+    const filled = segment.step < currentStep || (current && answered)
+    if (filled) {
+      return (
+        <strong key={segmentIndex} className={current ? 'is-target' : ''}>
+          {segment.text}
+        </strong>
+      )
+    }
+    return (
+      <span
+        key={segmentIndex}
+        className={`cloze-blank ${current ? 'is-target' : ''}`}
+        style={{ '--blank-length': Math.min(24, Math.max(6, segment.text.length)) } as React.CSSProperties}
+        aria-label={`blank ${segment.step + 1} of ${total}`}
+        aria-current={current ? 'true' : undefined}
+      />
+    )
+  })
+}
+
 function ChoiceList({
-  question,
+  step,
   feedback,
   onPick,
 }: Readonly<{
-  question: Question
+  step: QuestionStep
   feedback: Feedback | null
   onPick: (index: number) => void
 }>) {
   return (
     <div className="choice-list" aria-label="Answer choices">
-      {question.choices.map((choice, index) => {
-        const correct = feedback !== null && index === question.answerIndex
+      {step.choices.map((choice, index) => {
+        const correct = feedback !== null && index === step.answerIndex
         const pickedWrong = feedback !== null && index === feedback.picked && !feedback.correct
         return (
           <button
@@ -306,4 +360,13 @@ function splitSegmentsByLine(segments: Segment[]): Segment[][] {
     })
   }
   return lines.filter((line) => line.length > 0)
+}
+
+function withoutLineBullet(segments: Segment[]): Segment[] {
+  const first = segments[0]
+  if (!first || first.kind !== 'text') return segments
+  const stripped = first.text.replace(/^[-*]\s+/, '')
+  if (stripped === first.text) return segments
+  if (!stripped) return segments.slice(1)
+  return [{ kind: 'text', text: stripped }, ...segments.slice(1)]
 }

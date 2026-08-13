@@ -85,7 +85,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     try {
       const payload = await startStudyFn({ data: { deckId: target.id } })
       if (payload.dueCards.length === 0) {
-        setNotice('Nothing is due in this deck yet.')
+        setNotice('This deck has no cards yet.')
         return
       }
       setStudy({ deckName: target.name, ...payload })

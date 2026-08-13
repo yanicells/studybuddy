@@ -25,25 +25,27 @@ function buildClozeQuestion(
     highlights.map((_, index) => index),
     random,
   ).slice(0, Math.max(1, blankCount(card.status, highlights.length)))
-  const targetIndex = order[0]!
-  const target = highlights[targetIndex]!
-  const side = target.side
+  const side = highlights[order[0]!]!.side
   const text = side === 'front' ? card.front : card.back
   const blanks = highlights.filter(
     (highlight, index) => highlight.side === side && order.includes(index),
   )
-  const segments = splitCloze(text, blanks, target.text)
+  const segments = splitCloze(text, blanks)
   if (segments === null) return null
-  const { choices, answerIndex } = makeChoices(target.text, card, deck, random)
+  const steps = segments
+    .filter((segment) => segment.kind === 'blank')
+    .map((segment) => {
+      const { choices, answerIndex } = makeChoices(segment.text, card, deck, random)
+      return { answer: segment.text, choices, answerIndex }
+    })
+  if (steps.length === 0) return null
   return {
     cardId: card.id,
     front: card.front,
     back: card.back,
     prompt: { kind: 'cloze', segments },
     clozeSide: side,
-    choices,
-    answerIndex,
-    answer: target.text,
+    steps,
   }
 }
 
@@ -56,9 +58,7 @@ function buildFullChoice(card: Card, deck: Card[], random: Random): Question {
     back: card.back,
     prompt: { kind: 'front', text: card.front },
     clozeSide: null,
-    choices,
-    answerIndex,
-    answer,
+    steps: [{ answer, choices, answerIndex }],
   }
 }
 
@@ -69,27 +69,29 @@ function blankCount(status: Status, count: number): number {
   return count
 }
 
-function splitCloze(text: string, blanks: Highlight[], target: string): Segment[] | null {
-  const spans: Array<{ start: number; end: number; target: boolean }> = []
+function splitCloze(text: string, blanks: Highlight[]): Segment[] | null {
+  const spans: Array<{ start: number; end: number }> = []
   for (const blank of blanks) {
     const start = findIgnoreCase(text, blank.text)
     if (start < 0) continue
     const end = start + blank.text.length
     if (spans.some((span) => start < span.end && end > span.start)) continue
-    spans.push({ start, end, target: equalIgnoreCase(blank.text, target) })
+    spans.push({ start, end })
   }
   if (spans.length === 0) return null
   spans.sort((left, right) => left.start - right.start)
 
   const segments: Segment[] = []
   let cursor = 0
+  let step = 0
   for (const span of spans) {
     if (span.start > cursor) segments.push({ kind: 'text', text: text.slice(cursor, span.start) })
     segments.push({
       kind: 'blank',
       text: text.slice(span.start, span.end),
-      target: span.target,
+      step,
     })
+    step += 1
     cursor = span.end
   }
   if (cursor < text.length) segments.push({ kind: 'text', text: text.slice(cursor) })

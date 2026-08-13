@@ -12,7 +12,7 @@ export function CardText({
     <div className="card-text">
       {blocks.map((block, index) =>
         block.kind === 'ul' ? (
-          <ul key={index}>
+          <ul key={index} role="list">
             {block.items.map((item, itemIndex) => (
               <li key={`${itemIndex}-${item}`}>
                 <HighlightedText text={item} phrases={phrases} />

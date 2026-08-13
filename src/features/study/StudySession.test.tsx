@@ -51,13 +51,100 @@ describe('StudySession', () => {
     expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
     expect(recordAnswerFn).toHaveBeenCalledTimes(2)
 
-    first.resolve(dueCards[0]!)
+    first.resolve(dueCards[1]!)
     await first.promise
+  })
+
+  it('asks each cloze blank before saving the card', async () => {
+    const user = userEvent.setup()
+    vi.mocked(recordAnswerFn).mockResolvedValue(multiCard)
+
+    render(
+      <StudySession
+        deckName="Anatomy"
+        dueCards={[multiCard]}
+        deckCards={[multiCard, ...dueCards]}
+        onLeave={() => undefined}
+        onNotice={() => undefined}
+      />,
+    )
+
+    expect(screen.getByLabelText('blank 1 of 2')).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByLabelText('blank 2 of 2')).not.toHaveAttribute('aria-current')
+
+    await user.click(choice('mitochondria'))
+
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument()
+    expect(screen.getByText('Next blank.')).toBeInTheDocument()
+    expect(recordAnswerFn).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('blank 1 of 2')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('blank 2 of 2')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(screen.getByLabelText('blank 2 of 2')).toHaveAttribute('aria-current', 'true')
+    expect(screen.queryByText('Next blank.')).not.toBeInTheDocument()
+
+    await user.click(choice('ATP'))
+
+    expect(recordAnswerFn).toHaveBeenCalledTimes(1)
+    expect(recordAnswerFn).toHaveBeenCalledWith({
+      data: { cardId: multiCard.id, correct: true },
+    })
+    expect(screen.queryByText('Next blank.')).not.toBeInTheDocument()
+  })
+
+  it('saves the card as wrong if any cloze blank is missed', async () => {
+    const user = userEvent.setup()
+    vi.mocked(recordAnswerFn).mockResolvedValue(multiCard)
+
+    render(
+      <StudySession
+        deckName="Anatomy"
+        dueCards={[multiCard]}
+        deckCards={[multiCard, ...dueCards]}
+        onLeave={() => undefined}
+        onNotice={() => undefined}
+      />,
+    )
+
+    const wrong = within(screen.getByLabelText('Answer choices'))
+      .getAllByRole('button')
+      .find((button) => !/mitochondria/i.test(button.textContent ?? ''))!
+    await user.click(wrong)
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    await user.click(choice('ATP'))
+
+    expect(recordAnswerFn).toHaveBeenCalledWith({
+      data: { cardId: multiCard.id, correct: false },
+    })
+    expect(screen.getByText('Another blank was missed. Back next round.')).toBeInTheDocument()
+  })
+
+  it('renders back-side cloze lines as bullets', async () => {
+    vi.mocked(recordAnswerFn).mockResolvedValue(bulletCard)
+
+    render(
+      <StudySession
+        deckName="Anatomy"
+        dueCards={[bulletCard]}
+        deckCards={[bulletCard, ...dueCards]}
+        onLeave={() => undefined}
+        onNotice={() => undefined}
+      />,
+    )
+
+    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByRole('list')).toBeInTheDocument()
   })
 })
 
 function firstChoice() {
   return within(screen.getByLabelText('Answer choices')).getAllByRole('button')[0]!
+}
+
+function choice(name: string) {
+  return within(screen.getByLabelText('Answer choices')).getByRole('button', { name: new RegExp(name, 'i') })
 }
 
 function renderSession() {
@@ -150,3 +237,23 @@ const dueCards: Card[] = [
     lastReviewedAt: null,
   },
 ]
+
+const multiCard: Card = {
+  ...dueCards[0]!,
+  id: 10,
+  status: 'mastered',
+  front: 'The mitochondria produces ATP in the cell',
+  back: 'energy',
+  highlights: [
+    { side: 'front', text: 'mitochondria' },
+    { side: 'front', text: 'ATP' },
+  ],
+}
+
+const bulletCard: Card = {
+  ...dueCards[0]!,
+  id: 11,
+  front: 'Name two organelles',
+  back: '- mitochondria\n- nucleus',
+  highlights: [{ side: 'back', text: 'mitochondria' }],
+}
