@@ -5,10 +5,10 @@ import { LibraryWorkspace } from '../features/library/LibraryWorkspace'
 
 export const Route = createFileRoute('/')({
   loader: () => getLibraryFn(),
-  component: StudybuddyPage,
+  component: StudyBuddyPage,
 })
 
-function StudybuddyPage() {
+function StudyBuddyPage() {
   const library = Route.useLoaderData()
   return <LibraryWorkspace library={library} />
 }

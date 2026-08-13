@@ -1,4 +1,4 @@
-# Studybuddy
+# StudyBuddy
 
 Personal, local-first flashcard app. TanStack Start + React + SQLite.
 

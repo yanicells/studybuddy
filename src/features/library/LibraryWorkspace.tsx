@@ -125,7 +125,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
         <div className="rail-brand">
           <button type="button" className="rail-home" onClick={() => select(null)}>
             <AppIcon />
-            <strong>Studybuddy</strong>
+            <strong>StudyBuddy</strong>
           </button>
           <Button className="rail-close" variant="ghost" size="small" aria-label="Close library" onClick={() => setDrawerOpen(false)}>
             <X size={18} />

@@ -1,4 +1,4 @@
-# Studybuddy
+# StudyBuddy
 
 A local-first flashcard app for short study sessions, built with TanStack Start, React, Drizzle, and SQLite/Turso. It includes nested folders and decks, markdown bold and bullets, status filters, spaced repetition, and multiple-choice cloze sessions.
 

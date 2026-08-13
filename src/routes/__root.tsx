@@ -18,7 +18,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Studybuddy' },
+      { title: 'StudyBuddy' },
       {
         name: 'description',
         content: 'A focused flashcard library for short, effective study sessions.',
@@ -39,7 +39,7 @@ export const Route = createRootRoute({
   notFoundComponent: () => <main className="route-message">Page not found.</main>,
   errorComponent: ({ error }) => (
     <main className="route-message">
-      <h1>Studybuddy could not open.</h1>
+      <h1>StudyBuddy could not open.</h1>
       <p>{error.message}</p>
     </main>
   ),
