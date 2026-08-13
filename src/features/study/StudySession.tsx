@@ -1,11 +1,12 @@
 import { ArrowLeft, Check, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
 import { Progress } from '../../components/ProgressBars'
 import { buildQuestion } from '../../core/quiz'
 import { Session } from '../../core/session'
+import { applyAnswer } from '../../core/srs'
 import type { Card, Question, Segment } from '../../core/types'
 import { recordAnswerFn } from '../library/library.functions'
 
@@ -33,32 +34,27 @@ export function StudySession({
   const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
   const [question, setQuestion] = useState<Question | null>(() => nextQuestion(session, cards))
   const [feedback, setFeedback] = useState<Feedback | null>(null)
-  const [pending, setPending] = useState(false)
+  const answering = useRef(false)
+  const saves = useRef(new Map<number, Promise<void>>())
   const done = question === null
 
   const pick = useCallback(
-    async (index: number) => {
-      if (feedback || pending || !question || index >= question.choices.length) return
+    (index: number) => {
+      if (feedback || answering.current || !question || index >= question.choices.length) return
+      answering.current = true
       const correct = index === question.answerIndex
-      setPending(true)
-      try {
-        const updated = await recordAnswerFn({
-          data: { cardId: question.cardId, correct },
-        })
-        cards.set(updated.id, updated)
-        session.answer(question.cardId, correct)
-        setFeedback({ picked: index, correct })
-      } catch (error) {
-        onNotice(error instanceof Error ? error.message : 'The answer could not be saved.')
-      } finally {
-        setPending(false)
-      }
+      const card = cards.get(question.cardId)
+      session.answer(question.cardId, correct)
+      if (card) cards.set(card.id, applyAnswer(card, correct))
+      setFeedback({ picked: index, correct })
+      persistAnswer(saves.current, cards, question.cardId, correct, onNotice)
     },
-    [cards, feedback, onNotice, pending, question, session],
+    [cards, feedback, onNotice, question, session],
   )
 
   const continueSession = useCallback(() => {
     if (!feedback) return
+    answering.current = false
     setFeedback(null)
     setQuestion(nextQuestion(session, cards))
   }, [cards, feedback, session])
@@ -81,7 +77,7 @@ export function StudySession({
       const index = Number(event.key) - 1
       if (!feedback && index >= 0 && index <= 3) {
         event.preventDefault()
-        void pick(index)
+        pick(index)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -135,7 +131,6 @@ export function StudySession({
                 <ChoiceList
                   question={question}
                   feedback={feedback}
-                  pending={pending}
                   onPick={pick}
                 />
               </section>
@@ -159,7 +154,7 @@ export function StudySession({
                     )}
                   </>
                 ) : (
-                  <span>{pending ? 'Saving answer…' : 'Press 1–4 to answer'}</span>
+                  <span>Press 1–4 to answer</span>
                 )}
               </div>
               {feedback ? (
@@ -240,13 +235,11 @@ function Cloze({
 function ChoiceList({
   question,
   feedback,
-  pending,
   onPick,
 }: Readonly<{
   question: Question
   feedback: Feedback | null
-  pending: boolean
-  onPick: (index: number) => Promise<void>
+  onPick: (index: number) => void
 }>) {
   return (
     <div className="choice-list" aria-label="Answer choices">
@@ -258,8 +251,8 @@ function ChoiceList({
             type="button"
             key={`${index}-${choice}`}
             className={`${correct ? 'is-correct' : ''} ${pickedWrong ? 'is-wrong' : ''}`.trim()}
-            onClick={() => void onPick(index)}
-            disabled={feedback !== null || pending}
+            onClick={() => onPick(index)}
+            disabled={feedback !== null}
           >
             <span>{index + 1}</span>
             <p>{choice}</p>
@@ -270,6 +263,26 @@ function ChoiceList({
       })}
     </div>
   )
+}
+
+function persistAnswer(
+  queue: Map<number, Promise<void>>,
+  cards: Map<number, Card>,
+  cardId: number,
+  correct: boolean,
+  onNotice: (message: string) => void,
+) {
+  const previous = queue.get(cardId) ?? Promise.resolve()
+  const next = previous
+    .catch(() => undefined)
+    .then(() => recordAnswerFn({ data: { cardId, correct } }))
+    .then((updated) => {
+      cards.set(updated.id, updated)
+    })
+    .catch((error: unknown) => {
+      onNotice(error instanceof Error ? error.message : 'The answer could not be saved.')
+    })
+  queue.set(cardId, next)
 }
 
 function nextQuestion(session: Session, cards: Map<number, Card>): Question | null {
