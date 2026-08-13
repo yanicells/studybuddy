@@ -104,7 +104,7 @@ function FolderBranch({
           onClick={() => onSelect({ kind: 'folder', id: folder.id })}
         >
           <Folder size={16} />
-          <span>{folder.name}</span>
+          <span title={folder.name}>{folder.name}</span>
         </button>
         <RowMenu
           name={folder.name}
@@ -173,7 +173,7 @@ function DeckRow({
         onClick={() => onSelect({ kind: 'deck', id: deck.id })}
       >
         <Layers3 size={16} />
-        <span>{deck.name}</span>
+        <span title={deck.name}>{deck.name}</span>
       </button>
       {due > 0 ? <span className="tree-row__count">{due}</span> : null}
       <RowMenu
