@@ -36,7 +36,7 @@ Schema changes live in `src/server/schema.ts`. The runtime applies `src/server/m
 
 ## Vercel
 
-In the Vercel project settings, add:
+In the Vercel project settings, add **both** of these (a URL without a token still tries local SQLite and will fail):
 
 - `TURSO_DATABASE_URL` — `libsql://studybuddy-yanicells.aws-ap-northeast-1.turso.io`
 - `TURSO_AUTH_TOKEN` — a token from the Turso dashboard

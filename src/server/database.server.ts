@@ -37,8 +37,14 @@ export function resolveConnection(): { url: string; authToken?: string } {
   const authToken = process.env.TURSO_AUTH_TOKEN?.trim()
   if (url && authToken) return { url, authToken }
 
+  if (isServerless()) {
+    throw new Error(
+      'Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the Vercel project environment.',
+    )
+  }
+
   const path = resolveDatabasePath()
-  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
+  if (path !== ':memory:') ensureDirectory(path)
   return { url: path === ':memory:' ? ':memory:' : `file:${path}` }
 }
 
@@ -48,9 +54,7 @@ export async function openDatabase(
   const options = typeof connection === 'string'
     ? { url: connection === ':memory:' ? ':memory:' : `file:${connection}` }
     : connection
-  if (options.url.startsWith('file:')) {
-    mkdirSync(dirname(options.url.slice('file:'.length)), { recursive: true })
-  }
+  if (options.url.startsWith('file:')) ensureDirectory(options.url.slice('file:'.length))
   const client = createClient(options)
   await client.execute('PRAGMA foreign_keys = ON')
   await applyMigrations(client)
@@ -60,7 +64,10 @@ export async function openDatabase(
 }
 
 export function getDatabase(): Promise<Database> {
-  defaultDatabase ??= openDatabase()
+  defaultDatabase ??= openDatabase().catch((error: unknown) => {
+    defaultDatabase = undefined
+    throw error
+  })
   return defaultDatabase
 }
 
@@ -89,4 +96,18 @@ export async function applyMigrations(client: Client): Promise<void> {
       args: [migration.hash, Date.now()],
     })
   }
+}
+
+function isServerless(): boolean {
+  return Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME)
+}
+
+function ensureDirectory(path: string): void {
+  if (!path || path === ':memory:') return
+  if (isServerless()) {
+    throw new Error(
+      'Set TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the Vercel project environment.',
+    )
+  }
+  mkdirSync(dirname(path), { recursive: true })
 }
