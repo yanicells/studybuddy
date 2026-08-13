@@ -15,7 +15,8 @@ import { useRouter } from '@tanstack/react-router'
 
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
-import type { LibrarySnapshot } from '../../core/types'
+import { highestDueDeck } from '../../core/stats'
+import type { Deck, LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
 import { startStudyFn } from './library.functions'
 import { LibraryContent } from './LibraryContent'
@@ -77,16 +78,17 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     return null
   }, [activeSelection, selectedDeck?.folderId])
 
-  async function beginStudy() {
-    if (!selectedDeck) return
+  async function beginStudy(deck?: Deck) {
+    const target = deck ?? selectedDeck ?? highestDueDeck(library)
+    if (!target) return
     setStartingStudy(true)
     try {
-      const payload = await startStudyFn({ data: { deckId: selectedDeck.id } })
+      const payload = await startStudyFn({ data: { deckId: target.id } })
       if (payload.dueCards.length === 0) {
         setNotice('Nothing is due in this deck yet.')
         return
       }
-      setStudy({ deckName: selectedDeck.name, ...payload })
+      setStudy({ deckName: target.name, ...payload })
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The study session could not start.')
     } finally {
@@ -108,7 +110,8 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   }
 
   const title = selectedFolder?.name ?? selectedDeck?.name ?? 'Library'
-  const due = selectedDeck ? (library.statsByDeck[selectedDeck.id]?.due ?? 0) : 0
+  const studyDeck = selectedDeck ?? (activeSelection === null ? highestDueDeck(library) : undefined)
+  const due = studyDeck ? (library.statsByDeck[studyDeck.id]?.due ?? 0) : 0
 
   return (
     <main className="app-shell">
@@ -120,10 +123,10 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       />
       <aside className={`library-rail ${drawerOpen ? 'is-open' : ''}`}>
         <div className="rail-brand">
-          <AppIcon />
-          <div>
+          <button type="button" className="rail-home" onClick={() => select(null)}>
+            <AppIcon />
             <strong>Studybuddy</strong>
-          </div>
+          </button>
           <Button className="rail-close" variant="ghost" size="small" aria-label="Close library" onClick={() => setDrawerOpen(false)}>
             <X size={18} />
           </Button>
@@ -177,6 +180,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       </aside>
 
       <section className="workspace">
+        <div className="workspace-column">
         <header className="workspace-header">
           <Button
             className="rail-open"
@@ -191,13 +195,13 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
             <h1>{title}</h1>
           </div>
           <div className="header-actions">
-            {selectedDeck ? (
+            {studyDeck ? (
               <Button
                 variant="primary"
                 size="small"
                 icon={<Play size={16} fill="currentColor" />}
                 disabled={startingStudy}
-                onClick={() => void beginStudy()}
+                onClick={() => void beginStudy(studyDeck)}
               >
                 {startingStudy ? 'Starting…' : due > 0 ? `Study ${due}` : 'Study'}
               </Button>
@@ -321,6 +325,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
             onSelect={select}
             onDialog={setDialog}
           />
+        </div>
         </div>
         {notice ? (
           <div className="notice" role="status">

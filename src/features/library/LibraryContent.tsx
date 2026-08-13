@@ -5,6 +5,7 @@ import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
 import { StackedProgress } from '../../components/ProgressBars'
 import { phrasesForSide } from '../../core/quiz'
+import { descendantDeckIds, rollupStats } from '../../core/stats'
 import { EMPTY_STATS, type Card, type DeckStats, type LibrarySnapshot, type Status } from '../../core/types'
 import type { LibraryDialog, Selection, StatusFilter } from './library.types'
 
@@ -18,24 +19,108 @@ interface LibraryContentProps {
 }
 
 export function LibraryContent(props: LibraryContentProps) {
-  if (props.selection === null) return <LibraryLanding library={props.library} />
+  if (props.selection === null) return <LibraryHome {...props} />
   if (props.selection.kind === 'folder') return <FolderContent {...props} />
   return <DeckContent {...props} />
 }
 
-function LibraryLanding({ library }: Readonly<{ library: LibrarySnapshot }>) {
+function LibraryHome({ library, onSelect }: LibraryContentProps) {
+  const folders = library.folders.filter((folder) => folder.parentId === null)
+  const decks = library.decks.filter((deck) => deck.folderId === null)
+  const dueDecks = library.decks
+    .filter((deck) => (library.statsByDeck[deck.id]?.due ?? 0) > 0)
+    .sort((left, right) => (library.statsByDeck[right.id]?.due ?? 0) - (library.statsByDeck[left.id]?.due ?? 0))
   const cardCount = Object.values(library.cardsByDeck).reduce(
     (total, cards) => total + cards.length,
     0,
   )
+
   return (
-    <section className="library-landing">
-      <p>Select a deck to review, or create one in the library.</p>
-      <p className="library-totals">
-        {library.decks.length} {library.decks.length === 1 ? 'deck' : 'decks'}
-        {' · '}
-        {cardCount} {cardCount === 1 ? 'card' : 'cards'}
-      </p>
+    <section className="home">
+      <div className="home-today">
+        <p className="home-today__due">
+          <strong>{library.study.due}</strong>
+          <span>due today</span>
+        </p>
+        <p>
+          {library.study.streak} {library.study.streak === 1 ? 'day' : 'days'} streak
+          {' · '}
+          {library.study.reviewedToday} reviewed today
+          {' · '}
+          {library.decks.length} {library.decks.length === 1 ? 'deck' : 'decks'}
+          {' · '}
+          {cardCount} {cardCount === 1 ? 'card' : 'cards'}
+        </p>
+      </div>
+
+      {folders.length === 0 && decks.length === 0 ? (
+        <EmptyState
+          icon={<Folder />}
+          title="Nothing here yet"
+          body="Create a folder or deck in the library to start."
+        />
+      ) : (
+        <div className="folder-grid" aria-label="Folders and decks">
+          {folders.map((folder) => {
+            const deckIds = descendantDeckIds(library, folder.id)
+            const stats = rollupStats(library, deckIds)
+            const nested = library.folders.filter((child) => child.parentId === folder.id).length
+            const deckCount = deckIds.length
+            return (
+              <button
+                type="button"
+                className="folder-tile"
+                key={folder.id}
+                onClick={() => onSelect({ kind: 'folder', id: folder.id })}
+              >
+                <span className="tile-icon"><Folder size={18} /></span>
+                <span className="deck-tile__copy">
+                  <strong>{folder.name}</strong>
+                  <small>
+                    {stats.due} due · {deckCount} {deckCount === 1 ? 'deck' : 'decks'}
+                    {nested > 0 ? ` · ${nested} ${nested === 1 ? 'folder' : 'folders'}` : ''}
+                  </small>
+                  <StackedProgress stats={stats} />
+                </span>
+                <ArrowRight size={16} />
+              </button>
+            )
+          })}
+          {decks.map((deck) => (
+            <DeckTile
+              key={deck.id}
+              name={deck.name}
+              stats={library.statsByDeck[deck.id] ?? EMPTY_STATS}
+              onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+            />
+          ))}
+        </div>
+      )}
+
+      {dueDecks.length > 0 ? (
+        <div className="home-section">
+          <h2>Due now</h2>
+          <div className="due-list" aria-label="Decks with cards due">
+            {dueDecks.map((deck) => {
+              const stats = library.statsByDeck[deck.id] ?? EMPTY_STATS
+              return (
+                <button
+                  type="button"
+                  className="due-row"
+                  key={deck.id}
+                  onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+                >
+                  <span>
+                    <strong>{deck.name}</strong>
+                    <small>{stats.learning} learning · {stats.mastered} mastered</small>
+                  </span>
+                  <span className="due-row__count">{stats.due}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -51,39 +136,53 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
 
   return (
     <section className="folder-grid" aria-label="Folder contents">
-      {folders.map((folder) => (
-        <button
-          type="button"
-          className="folder-tile"
-          key={folder.id}
-          onClick={() => onSelect({ kind: 'folder', id: folder.id })}
-        >
-          <span className="tile-icon"><Folder size={18} /></span>
-          <span><strong>{folder.name}</strong><small>Folder</small></span>
-          <ArrowRight size={16} />
-        </button>
-      ))}
-      {decks.map((deck) => {
-        const stats = library.statsByDeck[deck.id] ?? EMPTY_STATS
-        const total = totalCards(stats)
+      {folders.map((folder) => {
+        const stats = rollupStats(library, descendantDeckIds(library, folder.id))
         return (
           <button
             type="button"
-            className="deck-tile"
-            key={deck.id}
-            onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+            className="folder-tile"
+            key={folder.id}
+            onClick={() => onSelect({ kind: 'folder', id: folder.id })}
           >
-            <span className="tile-icon"><Layers3 size={18} /></span>
+            <span className="tile-icon"><Folder size={18} /></span>
             <span className="deck-tile__copy">
-              <strong>{deck.name}</strong>
-              <small>{stats.due} due · {total} {total === 1 ? 'card' : 'cards'}</small>
+              <strong>{folder.name}</strong>
+              <small>{stats.due} due · Folder</small>
               <StackedProgress stats={stats} />
             </span>
             <ArrowRight size={16} />
           </button>
         )
       })}
+      {decks.map((deck) => (
+        <DeckTile
+          key={deck.id}
+          name={deck.name}
+          stats={library.statsByDeck[deck.id] ?? EMPTY_STATS}
+          onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+        />
+      ))}
     </section>
+  )
+}
+
+function DeckTile({
+  name,
+  stats,
+  onClick,
+}: Readonly<{ name: string; stats: DeckStats; onClick: () => void }>) {
+  const total = totalCards(stats)
+  return (
+    <button type="button" className="deck-tile" onClick={onClick}>
+      <span className="tile-icon"><Layers3 size={18} /></span>
+      <span className="deck-tile__copy">
+        <strong>{name}</strong>
+        <small>{stats.due} due · {total} {total === 1 ? 'card' : 'cards'}</small>
+        <StackedProgress stats={stats} />
+      </span>
+      <ArrowRight size={16} />
+    </button>
   )
 }
 

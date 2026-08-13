@@ -7,7 +7,8 @@ test('supports the complete library workflow', async ({ page }) => {
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
-  await expect(page.getByText(/2 decks/)).toBeVisible()
+  await expect(page.locator('.home-today')).toContainText('2 decks')
+  await expect(page.getByText(/due today/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Folder', exact: true }).click()
   await fillDialog(page, 'New folder', { Name: 'E2E Folder' }, 'Save')
@@ -73,7 +74,7 @@ test('supports the complete library workflow', async ({ page }) => {
   await page.getByRole('dialog', { name: 'Delete deck?' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
 
-  await page.getByRole('button', { name: /E2E Folder Renamed/ }).click()
+  await page.getByLabel('Folders and decks').getByRole('button', { name: /E2E Folder Renamed/ }).click()
   await chooseMore(page, 'Delete')
   await page.getByRole('dialog', { name: 'Delete folder?' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByRole('button', { name: /E2E Folder Renamed/ })).toHaveCount(0)
@@ -82,7 +83,7 @@ test('supports the complete library workflow', async ({ page }) => {
 test('records answers and supports keyboard study controls', async ({ page }) => {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
-  await page.getByRole('button', { name: /Architecture vs Organization/ }).click()
+  await page.getByLabel('Decks with cards due').getByRole('button', { name: /Architecture vs Organization/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
   await expect(page.locator('.deck-overview__summary')).toContainText('due')
@@ -93,7 +94,7 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
   await page.keyboard.press('1')
   await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible()
   await page.keyboard.press('Enter')
-  await expect(page.getByText(/wave 1/)).toBeVisible()
+  await expect(page.getByText(/Round 1/)).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 })

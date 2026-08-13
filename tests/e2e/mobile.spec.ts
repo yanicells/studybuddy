@@ -9,7 +9,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Open library' }).click()
   await expect(page.getByRole('navigation', { name: 'Study library' })).toBeVisible()
-  await page.getByRole('button', { name: /Architecture vs Organization/ }).click()
+  await page.getByRole('navigation', { name: 'Study library' }).getByRole('button', { name: /Architecture vs Organization/ }).click()
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 
   await page.getByRole('button', { name: /Study/ }).click()
