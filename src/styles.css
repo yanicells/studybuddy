@@ -249,7 +249,7 @@ summary {
   width: 100%;
   min-height: 34px;
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) 24px;
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   gap: 0.4rem;
   margin: 1px 0;
@@ -265,7 +265,7 @@ summary {
 }
 
 .tree-row--deck {
-  grid-template-columns: 16px minmax(0, 1fr) auto 24px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
 }
 
 .tree-row:has(.tree-row__menu[open]) {
@@ -353,13 +353,14 @@ summary {
 }
 
 .tree-row > .tree-row__menu {
-  grid-row: 1;
-  grid-column: -1;
-  justify-self: end;
-  align-self: center;
-  position: relative;
+  position: absolute;
+  top: 0;
+  right: 0.15rem;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
   width: 24px;
-  height: 24px;
   line-height: 0;
 }
 
@@ -379,6 +380,22 @@ summary {
 }
 
 @media (hover: hover) {
+  .tree-row > .tree-row__menu {
+    pointer-events: none;
+  }
+
+  .tree-row:hover,
+  .tree-row:focus-within,
+  .tree-row:has(.tree-row__menu[open]) {
+    padding-right: 1.85rem;
+  }
+
+  .tree-row:hover > .tree-row__menu,
+  .tree-row:focus-within > .tree-row__menu,
+  .tree-row > .tree-row__menu[open] {
+    pointer-events: auto;
+  }
+
   .tree-row > .tree-row__menu summary {
     opacity: 0;
   }
@@ -387,6 +404,12 @@ summary {
   .tree-row:focus-within > .tree-row__menu summary,
   .tree-row > .tree-row__menu[open] summary {
     opacity: 1;
+  }
+}
+
+@media (hover: none) {
+  .tree-row {
+    padding-right: 2.1rem;
   }
 }
 
@@ -1462,16 +1485,16 @@ summary {
   }
 
   .tree-row {
-    grid-template-columns: 16px minmax(0, 1fr) 32px;
+    grid-template-columns: 16px minmax(0, 1fr);
+    padding-right: 2.4rem;
   }
 
   .tree-row--deck {
-    grid-template-columns: 16px minmax(0, 1fr) auto 32px;
+    grid-template-columns: 16px minmax(0, 1fr) auto;
   }
 
   .tree-row > .tree-row__menu {
     width: 32px;
-    height: 32px;
   }
 
   .tree-row > .tree-row__menu summary {
