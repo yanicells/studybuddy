@@ -21,6 +21,7 @@
     "better-sqlite3": "latest",
     "lucide-react": "latest",
     "nitro": "latest",
+    "openai": "^7.4.0",
     "react": "latest",
     "react-dom": "latest",
     "zod": "latest"
