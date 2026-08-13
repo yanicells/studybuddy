@@ -1,0 +1,295 @@
+import { ArrowLeft, Check, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+
+import { AppIcon } from '../../components/AppIcon'
+import { Button } from '../../components/Button'
+import { Progress } from '../../components/ProgressBars'
+import { buildQuestion } from '../../core/quiz'
+import { Session } from '../../core/session'
+import type { Card, Question, Segment } from '../../core/types'
+import { recordAnswerFn } from '../library/library.functions'
+
+interface StudySessionProps {
+  deckName: string
+  dueCards: Card[]
+  deckCards: Card[]
+  onLeave: () => void
+  onNotice: (message: string) => void
+}
+
+interface Feedback {
+  picked: number
+  correct: boolean
+}
+
+export function StudySession({
+  deckName,
+  dueCards,
+  deckCards,
+  onLeave,
+  onNotice,
+}: StudySessionProps) {
+  const [session] = useState(() => new Session(dueCards))
+  const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
+  const [question, setQuestion] = useState<Question | null>(() => nextQuestion(session, cards))
+  const [feedback, setFeedback] = useState<Feedback | null>(null)
+  const [pending, setPending] = useState(false)
+  const done = question === null
+
+  const pick = useCallback(
+    async (index: number) => {
+      if (feedback || pending || !question || index >= question.choices.length) return
+      const correct = index === question.answerIndex
+      setPending(true)
+      try {
+        const updated = await recordAnswerFn({
+          data: { cardId: question.cardId, correct },
+        })
+        cards.set(updated.id, updated)
+        session.answer(question.cardId, correct)
+        setFeedback({ picked: index, correct })
+      } catch (error) {
+        onNotice(error instanceof Error ? error.message : 'The answer could not be saved.')
+      } finally {
+        setPending(false)
+      }
+    },
+    [cards, feedback, onNotice, pending, question, session],
+  )
+
+  const continueSession = useCallback(() => {
+    if (!feedback) return
+    setFeedback(null)
+    setQuestion(nextQuestion(session, cards))
+  }, [cards, feedback, session])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onLeave()
+        return
+      }
+      if (feedback && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault()
+        continueSession()
+        return
+      }
+      const index = Number(event.key) - 1
+      if (!feedback && index >= 0 && index <= 3) {
+        event.preventDefault()
+        void pick(index)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [continueSession, feedback, onLeave, pick])
+
+  const total = Math.max(session.total, 1)
+  const progress = session.completed / total
+
+  return (
+    <main className="study-shell">
+      <header className="study-header">
+        <Button variant="ghost" size="small" icon={<ArrowLeft size={17} />} onClick={onLeave}>
+          Leave
+        </Button>
+        <div className="study-header__progress">
+          <div>
+            <strong>{deckName}</strong>
+            <span>{session.completed} of {total} done · wave {session.wave} · {session.remaining} left</span>
+          </div>
+          <Progress value={progress} label={`${session.completed} of ${total} cards completed`} />
+        </div>
+      </header>
+
+      {done ? (
+        <section className="study-complete">
+          <div className="complete-card">
+            <AppIcon size="large" />
+            <span className="eyebrow">Session complete</span>
+            <h1>That’s the set.</h1>
+            <p>Come back tomorrow for the cards that graduated.</p>
+            <Progress value={1} label="Session complete" />
+            <Button variant="primary" onClick={onLeave}>Back to deck</Button>
+          </div>
+        </section>
+      ) : (
+        <>
+          <div className="study-scroll">
+            <section className="study-stage">
+              <StudyCard
+                question={question}
+                revealed={feedback !== null}
+                hits={session.cardHits(question.cardId)}
+              />
+              <ChoiceList
+                question={question}
+                feedback={feedback}
+                pending={pending}
+                onPick={pick}
+              />
+            </section>
+          </div>
+          <footer className="study-footer">
+            <div className="feedback-copy" aria-live="polite">
+              {feedback ? (
+                <>
+                  <strong className={feedback.correct ? 'is-correct' : 'is-wrong'}>
+                    {feedback.correct ? <Check size={18} /> : <X size={18} />}
+                    {feedback.correct ? 'Correct' : 'Not quite'}
+                  </strong>
+                  {!feedback.correct ? <span>Answer: {question.answer}</span> : null}
+                </>
+              ) : (
+                <span>{pending ? 'Saving answer…' : 'Press 1–4 to answer'}</span>
+              )}
+            </div>
+            {feedback ? (
+              <Button variant="primary" onClick={continueSession}>Continue</Button>
+            ) : null}
+          </footer>
+        </>
+      )}
+    </main>
+  )
+}
+
+function StudyCard({
+  question,
+  revealed,
+  hits,
+}: Readonly<{ question: Question; revealed: boolean; hits: [number, number] }>) {
+  const cloze = question.prompt.kind === 'cloze' ? question.prompt.segments : null
+  const clozeFront = question.clozeSide === 'front'
+  const clozeBack = question.clozeSide === 'back'
+  const showAnswer = clozeBack || revealed || question.prompt.kind === 'front'
+
+  return (
+    <article className="study-card">
+      <div className="study-card__edge" aria-hidden="true" />
+      <section>
+        <span className="section-kicker">Question</span>
+        {clozeFront && cloze ? (
+          <Cloze segments={cloze} revealed={revealed} />
+        ) : (
+          <p className="study-card__question">{question.front}</p>
+        )}
+      </section>
+      {showAnswer ? (
+        <section className="study-card__answer">
+          <span className="section-kicker">Answer</span>
+          {clozeBack && cloze ? (
+            <Cloze segments={cloze} revealed={revealed} bullets />
+          ) : revealed && question.back.trim() ? (
+            question.back.split('\n').filter(Boolean).map((line, index) => (
+              <p key={`${index}-${line}`}><span aria-hidden="true">•</span>{line}</p>
+            ))
+          ) : (
+            <p className="answer-placeholder">Pick the matching answer.</p>
+          )}
+        </section>
+      ) : null}
+      <footer className="study-card__hits">
+        <span>This card · {hits[0]} of {hits[1]}</span>
+        <span className="hit-pips" aria-hidden="true">
+          {Array.from({ length: hits[1] }, (_, index) => (
+            <i key={index} className={index < hits[0] ? 'is-filled' : ''} />
+          ))}
+        </span>
+      </footer>
+    </article>
+  )
+}
+
+function Cloze({
+  segments,
+  revealed,
+  bullets = false,
+}: Readonly<{ segments: Segment[]; revealed: boolean; bullets?: boolean }>) {
+  const lines = splitSegmentsByLine(segments)
+  return (
+    <div className="cloze-passage">
+      {lines.map((line, lineIndex) => (
+        <p key={lineIndex}>
+          {bullets ? <span aria-hidden="true">•</span> : null}
+          {line.map((segment, segmentIndex) =>
+            segment.kind === 'text' ? (
+              <span key={segmentIndex}>{segment.text}</span>
+            ) : revealed ? (
+              <mark key={segmentIndex} className={segment.target ? 'is-target' : ''}>{segment.text}</mark>
+            ) : (
+              <span
+                key={segmentIndex}
+                className={`cloze-blank ${segment.target ? 'is-target' : ''}`}
+                style={{ '--blank-length': Math.min(24, Math.max(6, segment.text.length)) } as React.CSSProperties}
+                aria-label="blank"
+              />
+            ),
+          )}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+function ChoiceList({
+  question,
+  feedback,
+  pending,
+  onPick,
+}: Readonly<{
+  question: Question
+  feedback: Feedback | null
+  pending: boolean
+  onPick: (index: number) => Promise<void>
+}>) {
+  return (
+    <div className="choice-list" aria-label="Answer choices">
+      {question.choices.map((choice, index) => {
+        const correct = feedback !== null && index === question.answerIndex
+        const pickedWrong = feedback !== null && index === feedback.picked && !feedback.correct
+        return (
+          <button
+            type="button"
+            key={`${index}-${choice}`}
+            className={`${correct ? 'is-correct' : ''} ${pickedWrong ? 'is-wrong' : ''}`.trim()}
+            onClick={() => void onPick(index)}
+            disabled={feedback !== null || pending}
+          >
+            <span>{index + 1}</span>
+            <p>{choice}</p>
+            {correct ? <Check size={18} aria-label="Correct answer" /> : null}
+            {pickedWrong ? <X size={18} aria-label="Your answer" /> : null}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function nextQuestion(session: Session, cards: Map<number, Card>): Question | null {
+  const id = session.nextCard()
+  if (id === null) return null
+  const card = cards.get(id)
+  return card ? buildQuestion(card, [...cards.values()]) : null
+}
+
+function splitSegmentsByLine(segments: Segment[]): Segment[][] {
+  const lines: Segment[][] = [[]]
+  for (const segment of segments) {
+    if (segment.kind === 'blank') {
+      lines.at(-1)!.push(segment)
+      continue
+    }
+    const parts = segment.text.split('\n')
+    parts.forEach((part, index) => {
+      if (part) lines.at(-1)!.push({ kind: 'text', text: part })
+      if (index < parts.length - 1) lines.push([])
+    })
+  }
+  return lines.filter((line) => line.length > 0)
+}
