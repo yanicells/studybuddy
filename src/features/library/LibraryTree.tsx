@@ -1,7 +1,17 @@
-import { ChevronRight, Folder, Layers3 } from 'lucide-react'
+import { ChevronRight, Ellipsis, Folder, Layers3, Move, Pencil, Trash2 } from 'lucide-react'
+import { useRef, type CSSProperties } from 'react'
 
+import { Button } from '../../components/Button'
 import type { Deck, Folder as FolderType, LibrarySnapshot } from '../../core/types'
-import type { Selection } from './library.types'
+import {
+  deleteDeckDialog,
+  deleteFolderDialog,
+  moveItemDialog,
+  renameDeckDialog,
+  renameFolderDialog,
+  type LibraryDialog,
+  type Selection,
+} from './library.types'
 
 interface LibraryTreeProps {
   library: LibrarySnapshot
@@ -9,6 +19,7 @@ interface LibraryTreeProps {
   expanded: Set<number>
   onToggleFolder: (id: number) => void
   onSelect: (selection: Selection) => void
+  onDialog: (dialog: LibraryDialog) => void
 }
 
 export function LibraryTree({
@@ -17,6 +28,7 @@ export function LibraryTree({
   expanded,
   onToggleFolder,
   onSelect,
+  onDialog,
 }: LibraryTreeProps) {
   const rootFolders = library.folders.filter((folder) => folder.parentId === null)
   const rootDecks = library.decks.filter((deck) => deck.folderId === null)
@@ -33,6 +45,7 @@ export function LibraryTree({
           expanded={expanded}
           onToggleFolder={onToggleFolder}
           onSelect={onSelect}
+          onDialog={onDialog}
         />
       ))}
       {rootDecks.map((deck) => (
@@ -43,6 +56,7 @@ export function LibraryTree({
           library={library}
           selected={selection?.kind === 'deck' && selection.id === deck.id}
           onSelect={onSelect}
+          onDialog={onDialog}
         />
       ))}
     </nav>
@@ -62,6 +76,7 @@ function FolderBranch({
   expanded,
   onToggleFolder,
   onSelect,
+  onDialog,
 }: FolderBranchProps) {
   const open = expanded.has(folder.id)
   const selected = selection?.kind === 'folder' && selection.id === folder.id
@@ -72,7 +87,7 @@ function FolderBranch({
     <div>
       <div
         className={`tree-row ${selected ? 'tree-row--selected' : ''}`}
-        style={{ '--tree-depth': depth } as React.CSSProperties}
+        style={{ '--tree-depth': depth } as CSSProperties}
       >
         <button
           type="button"
@@ -91,6 +106,12 @@ function FolderBranch({
           <Folder size={16} />
           <span>{folder.name}</span>
         </button>
+        <RowMenu
+          name={folder.name}
+          onRename={() => onDialog(renameFolderDialog(folder))}
+          onMove={() => onDialog(moveItemDialog('folder', folder.id))}
+          onDelete={() => onDialog(deleteFolderDialog(folder.id))}
+        />
       </div>
       {open ? (
         <div>
@@ -104,6 +125,7 @@ function FolderBranch({
               expanded={expanded}
               onToggleFolder={onToggleFolder}
               onSelect={onSelect}
+              onDialog={onDialog}
             />
           ))}
           {childDecks.map((deck) => (
@@ -114,6 +136,7 @@ function FolderBranch({
               library={library}
               selected={selection?.kind === 'deck' && selection.id === deck.id}
               onSelect={onSelect}
+              onDialog={onDialog}
             />
           ))}
         </div>
@@ -128,25 +151,65 @@ function DeckRow({
   library,
   selected,
   onSelect,
+  onDialog,
 }: {
   deck: Deck
   depth: number
   library: LibrarySnapshot
   selected: boolean
   onSelect: (selection: Selection) => void
+  onDialog: (dialog: LibraryDialog) => void
 }) {
   const due = library.statsByDeck[deck.id]?.due ?? 0
   return (
-    <button
-      type="button"
+    <div
       className={`tree-row tree-row--deck ${selected ? 'tree-row--selected' : ''}`}
-      style={{ '--tree-depth': depth } as React.CSSProperties}
-      onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+      style={{ '--tree-depth': depth } as CSSProperties}
     >
       <span className="tree-row__deck-spacer" />
-      <Layers3 size={16} />
-      <span>{deck.name}</span>
+      <button
+        type="button"
+        className="tree-row__label"
+        onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+      >
+        <Layers3 size={16} />
+        <span>{deck.name}</span>
+      </button>
       {due > 0 ? <span className="tree-row__count">{due}</span> : null}
-    </button>
+      <RowMenu
+        name={deck.name}
+        onRename={() => onDialog(renameDeckDialog(deck))}
+        onMove={() => onDialog(moveItemDialog('deck', deck.id))}
+        onDelete={() => onDialog(deleteDeckDialog(deck.id))}
+      />
+    </div>
+  )
+}
+
+function RowMenu({
+  name,
+  onRename,
+  onMove,
+  onDelete,
+}: Readonly<{
+  name: string
+  onRename: () => void
+  onMove: () => void
+  onDelete: () => void
+}>) {
+  const menu = useRef<HTMLDetailsElement>(null)
+  function run(action: () => void) {
+    menu.current?.removeAttribute('open')
+    action()
+  }
+  return (
+    <details ref={menu} className="tree-row__menu actions-menu" name="sidebar-row-menu">
+      <summary aria-label={`More actions for ${name}`}><Ellipsis size={14} /></summary>
+      <div>
+        <Button variant="ghost" size="small" icon={<Pencil size={16} />} onClick={() => run(onRename)}>Rename</Button>
+        <Button variant="ghost" size="small" icon={<Move size={16} />} onClick={() => run(onMove)}>Move</Button>
+        <Button variant="ghost" size="small" icon={<Trash2 size={16} />} onClick={() => run(onDelete)}>Delete</Button>
+      </div>
+    </details>
   )
 }

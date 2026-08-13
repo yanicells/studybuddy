@@ -21,7 +21,16 @@ import { startStudyFn } from './library.functions'
 import { LibraryContent, CreatePlaceButtons } from './LibraryContent'
 import { LibraryDialogs } from './LibraryDialogs'
 import { LibraryTree } from './LibraryTree'
-import type { LibraryDialog, Selection, StatusFilter } from './library.types'
+import {
+  deleteDeckDialog,
+  deleteFolderDialog,
+  moveItemDialog,
+  renameDeckDialog,
+  renameFolderDialog,
+  type LibraryDialog,
+  type Selection,
+  type StatusFilter,
+} from './library.types'
 
 interface StudyPayload {
   deckName: string
@@ -153,6 +162,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
             })
           }
           onSelect={select}
+          onDialog={setDialog}
         />
       </aside>
 
@@ -228,36 +238,19 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
                       variant="ghost"
                       size="small"
                       icon={<Pencil size={16} />}
-                      onClick={() =>
-                        setDialog({
-                          kind: 'name',
-                          entity: 'deck',
-                          mode: 'rename',
-                          id: selectedDeck.id,
-                          parentId: selectedDeck.folderId,
-                          initialName: selectedDeck.name,
-                        })
-                      }
+                      onClick={() => setDialog(renameDeckDialog(selectedDeck))}
                     >Rename</Button>
                     <Button
                       variant="ghost"
                       size="small"
                       icon={<Move size={16} />}
-                      onClick={() => setDialog({ kind: 'move', entity: 'deck', id: selectedDeck.id })}
+                      onClick={() => setDialog(moveItemDialog('deck', selectedDeck.id))}
                     >Move</Button>
                     <Button
                       variant="ghost"
                       size="small"
                       icon={<Trash2 size={16} />}
-                      onClick={() =>
-                        setDialog({
-                          kind: 'confirm',
-                          entity: 'deck',
-                          id: selectedDeck.id,
-                          title: 'Delete deck?',
-                          description: 'Every card and review in this deck will be removed.',
-                        })
-                      }
+                      onClick={() => setDialog(deleteDeckDialog(selectedDeck.id))}
                     >Delete</Button>
                   </>
                 ) : (
@@ -273,36 +266,19 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
                           variant="ghost"
                           size="small"
                           icon={<Pencil size={16} />}
-                          onClick={() =>
-                            setDialog({
-                              kind: 'name',
-                              entity: 'folder',
-                              mode: 'rename',
-                              id: selectedFolder.id,
-                              parentId: selectedFolder.parentId,
-                              initialName: selectedFolder.name,
-                            })
-                          }
+                          onClick={() => setDialog(renameFolderDialog(selectedFolder))}
                         >Rename</Button>
                         <Button
                           variant="ghost"
                           size="small"
                           icon={<Move size={16} />}
-                          onClick={() => setDialog({ kind: 'move', entity: 'folder', id: selectedFolder.id })}
+                          onClick={() => setDialog(moveItemDialog('folder', selectedFolder.id))}
                         >Move</Button>
                         <Button
                           variant="ghost"
                           size="small"
                           icon={<Trash2 size={16} />}
-                          onClick={() =>
-                            setDialog({
-                              kind: 'confirm',
-                              entity: 'folder',
-                              id: selectedFolder.id,
-                              title: 'Delete folder?',
-                              description: 'Every folder, deck, card, and review inside will be removed.',
-                            })
-                          }
+                          onClick={() => setDialog(deleteFolderDialog(selectedFolder.id))}
                         >Delete</Button>
                       </>
                     ) : null}
