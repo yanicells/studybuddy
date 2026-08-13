@@ -112,5 +112,11 @@ describe('SQLite library repository', () => {
     expect(
       snapshot.decks.filter((deck) => deck.folderId === lecture?.id).map((deck) => deck.name),
     ).toEqual(['Architecture vs Organization', 'Structure and Function'])
+    expect(
+      snapshot.decks.reduce(
+        (total, deck) => total + (snapshot.cardsByDeck[deck.id]?.length ?? 0),
+        0,
+      ),
+    ).toBeGreaterThanOrEqual(40)
   })
 })
