@@ -25,20 +25,27 @@ describe('card import', () => {
 
   it('extracts explicit cloze marks without changing visible text', () => {
     const [card] = parseCards(
-      'The ==mitochondria== is the powerhouse of the cell\n- mitochondria',
+      'The **mitochondria** is the powerhouse of the cell\n- mitochondria',
     )
 
     expect(card?.front).toBe('The mitochondria is the powerhouse of the cell')
     expect(card?.highlights).toContainEqual({ side: 'front', text: 'mitochondria' })
   })
 
-  it('round-trips known editor marks', () => {
+  it('still reads legacy == marks', () => {
     expect(stripMarks('The ==mitochondria== works')).toEqual({
       text: 'The mitochondria works',
       highlights: ['mitochondria'],
     })
+  })
+
+  it('round-trips known editor marks as markdown bold', () => {
+    expect(stripMarks('The **mitochondria** works')).toEqual({
+      text: 'The mitochondria works',
+      highlights: ['mitochondria'],
+    })
     expect(wrapMarks('The mitochondria works', ['mitochondria'])).toBe(
-      'The ==mitochondria== works',
+      'The **mitochondria** works',
     )
   })
 

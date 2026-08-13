@@ -11,7 +11,7 @@ export function HighlightedText({
       {lineIndex > 0 ? <br /> : null}
       {markSpans(line, phrases).map((span, spanIndex) =>
         span.highlighted ? (
-          <mark key={`${spanIndex}-${span.text}`}>{span.text}</mark>
+          <strong key={`${spanIndex}-${span.text}`}>{span.text}</strong>
         ) : (
           <Fragment key={`${spanIndex}-${span.text}`}>{span.text}</Fragment>
         ),

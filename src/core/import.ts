@@ -1,3 +1,4 @@
+import { stripBullet } from './blocks'
 import type { Highlight, NewCard, Side } from './types'
 
 const STOP_WORDS = new Set([
@@ -67,38 +68,50 @@ function parseBlock(block: string): NewCard | null {
   }
 }
 
+const MARK_DELIMS = ['**', '=='] as const
+
 export function stripMarks(input: string): { text: string; highlights: string[] } {
   const highlights: string[] = []
   let text = ''
   let cursor = 0
 
   while (cursor < input.length) {
-    const start = input.indexOf('==', cursor)
-    if (start < 0) {
+    const next = nextMark(input, cursor)
+    if (next === null) {
       text += input.slice(cursor)
       break
     }
-    text += input.slice(cursor, start)
-    const end = input.indexOf('==', start + 2)
-    if (end < 0) {
-      text += input.slice(start)
-      break
-    }
-    const phrase = input.slice(start + 2, end).trim()
+    text += input.slice(cursor, next.start)
+    const phrase = input.slice(next.start + next.delim.length, next.end).trim()
     if (phrase) {
       highlights.push(phrase)
       text += phrase
     }
-    cursor = end + 2
+    cursor = next.end + next.delim.length
   }
 
   return { text, highlights }
 }
 
+function nextMark(
+  input: string,
+  from: number,
+): { start: number; end: number; delim: (typeof MARK_DELIMS)[number] } | null {
+  let best: { start: number; end: number; delim: (typeof MARK_DELIMS)[number] } | null = null
+  for (const delim of MARK_DELIMS) {
+    const start = input.indexOf(delim, from)
+    if (start < 0) continue
+    const end = input.indexOf(delim, start + delim.length)
+    if (end < 0) continue
+    if (best === null || start < best.start) best = { start, end, delim }
+  }
+  return best
+}
+
 export function heuristicHighlights(front: string, back: string): Highlight[] {
   const bullets = back
     .split('\n')
-    .map((line) => line.trim())
+    .map((line) => stripBullet(line.trim()))
     .filter(Boolean)
 
   const shortBullets =
@@ -127,10 +140,10 @@ export function heuristicHighlights(front: string, back: string): Highlight[] {
 
   if (
     found.length === 0 &&
-    isGoodKeyword(back) &&
-    back.trim().split(/\s+/).length <= 8
+    isGoodKeyword(back.replace(/^[-*]\s+/gm, '').trim()) &&
+    back.replace(/^[-*]\s+/gm, '').trim().split(/\s+/).length <= 8
   ) {
-    found.push({ side: 'back', text: back.trim() })
+    found.push({ side: 'back', text: stripBullet(back.trim()) })
   }
   return found
 }
@@ -194,7 +207,7 @@ export function wrapMarks(text: string, phrases: string[]): string {
     .sort(([a], [b]) => b - a)
     .reduce(
       (result, [start, end]) =>
-        `${result.slice(0, start)}==${result.slice(start, end)}==${result.slice(end)}`,
+        `${result.slice(0, start)}**${result.slice(start, end)}**${result.slice(end)}`,
       text,
     )
 }
