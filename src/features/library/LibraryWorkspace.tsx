@@ -14,6 +14,7 @@ import { useRouter } from '@tanstack/react-router'
 
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
+import { StudyPending } from '../../components/PendingScreens'
 import { folderPath, highestDueDeck } from '../../core/stats'
 import type { Deck, LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
@@ -114,6 +115,10 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     }
   }
 
+  const title = selectedFolder?.name ?? selectedDeck?.name ?? 'Library'
+  const studyDeck = selectedDeck ?? (activeSelection === null ? highestDueDeck(library) : undefined)
+  const due = studyDeck ? (library.statsByDeck[studyDeck.id]?.due ?? 0) : 0
+
   if (study) {
     return (
       <StudySession
@@ -127,9 +132,9 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     )
   }
 
-  const title = selectedFolder?.name ?? selectedDeck?.name ?? 'Library'
-  const studyDeck = selectedDeck ?? (activeSelection === null ? highestDueDeck(library) : undefined)
-  const due = studyDeck ? (library.statsByDeck[studyDeck.id]?.due ?? 0) : 0
+  if (startingStudy) {
+    return <StudyPending name={studyDeck?.name ?? title} />
+  }
 
   return (
     <main className="app-shell">

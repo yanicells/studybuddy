@@ -62,6 +62,92 @@ summary {
   outline-offset: 2px;
 }
 
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skeleton {
+  display: block;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--ink) 8%, var(--surface));
+  border-radius: 6px;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+.library-rail .skeleton {
+  background: color-mix(in srgb, var(--ink) 9%, var(--rail));
+}
+
+.skeleton--icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.skeleton--tree-label {
+  height: 10px;
+}
+
+.skeleton--title {
+  width: 8.5rem;
+  height: 1rem;
+}
+
+.skeleton--button {
+  width: 4.75rem;
+  height: 32px;
+  border-radius: 8px;
+}
+
+.skeleton--due {
+  width: 4.75rem;
+  height: 2.7rem;
+  border-radius: 8px;
+}
+
+.skeleton--meta {
+  width: 14rem;
+  max-width: 100%;
+  height: 0.7rem;
+}
+
+.skeleton--caption {
+  width: 6.5rem;
+  height: 0.7rem;
+}
+
+.skeleton--tile {
+  width: 100%;
+  height: 72px;
+  border-radius: 10px;
+}
+
+.skeleton--progress {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.skeleton--study-card {
+  width: 100%;
+  height: 8.5rem;
+  border-radius: 12px;
+}
+
+.skeleton--choice {
+  width: 100%;
+  height: 56px;
+  border-radius: 10px;
+}
+
 .route-message {
   min-height: 100vh;
   display: grid;
@@ -284,6 +370,12 @@ summary {
   color: var(--ink);
 }
 
+.tree-row--pending,
+.tree-row--pending:hover {
+  background: transparent;
+  pointer-events: none;
+}
+
 .tree-row--selected,
 .tree-row--selected:hover {
   background: var(--surface);
@@ -354,19 +446,21 @@ summary {
 
 .tree-row > .tree-row__menu {
   position: absolute;
-  top: 0;
+  top: 50%;
   right: 0.15rem;
-  bottom: 0;
   z-index: 1;
-  display: grid;
-  place-items: center;
   width: 24px;
+  height: 24px;
+  margin-top: -12px;
+  overflow: visible;
   line-height: 0;
 }
 
 .tree-row > .tree-row__menu summary {
   width: 24px;
   height: 24px;
+  margin: 0;
+  padding: 0;
   border-radius: 6px;
   line-height: 0;
 }
@@ -1065,6 +1159,12 @@ summary {
   font-size: 0.78rem;
 }
 
+.dialog-pending {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .move-list {
   max-height: 340px;
   display: grid;
@@ -1118,6 +1218,11 @@ summary {
   width: 1px;
   height: 1px;
   opacity: 0;
+}
+
+.dialog-form[aria-busy='true'] .file-picker {
+  pointer-events: none;
+  opacity: 0.5;
 }
 
 .study-shell {
@@ -1418,6 +1523,10 @@ summary {
   from { opacity: 0; transform: translateY(8px); }
 }
 
+@keyframes skeleton-pulse {
+  50% { opacity: 0.45; }
+}
+
 @media (max-width: 760px) {
   body {
     overflow: hidden;
@@ -1495,6 +1604,8 @@ summary {
 
   .tree-row > .tree-row__menu {
     width: 32px;
+    height: 32px;
+    margin-top: -16px;
   }
 
   .tree-row > .tree-row__menu summary {

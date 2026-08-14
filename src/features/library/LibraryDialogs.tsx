@@ -203,10 +203,16 @@ function LibraryDialogContent({
     const description = creating ? `This ${dialog.entity} will be added to ${parentName}.` : undefined
     return (
       <Dialog title={title} description={description} onClose={onClose}>
-        <form className="dialog-form" onSubmit={submitName}>
+        <form className="dialog-form" aria-busy={pending} onSubmit={submitName}>
           <label>
             <span>Name</span>
-            <input value={name} onChange={(event) => setName(event.target.value)} maxLength={120} required />
+            <input
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={120}
+              required
+              disabled={pending}
+            />
           </label>
           <DialogError error={error} />
           <DialogActions pending={pending} onClose={onClose} action={creating ? `Create ${dialog.entity}` : 'Save'} />
@@ -218,12 +224,14 @@ function LibraryDialogContent({
   if (dialog.kind === 'confirm') {
     return (
       <Dialog title={dialog.title} description={dialog.description} onClose={onClose}>
-        <DialogError error={error} />
-        <div className="dialog-actions">
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="danger" disabled={pending} onClick={confirmDelete}>
-            {pending ? 'Deleting…' : 'Delete'}
-          </Button>
+        <div aria-busy={pending}>
+          <DialogError error={error} />
+          <div className="dialog-actions">
+            <Button onClick={onClose}>Cancel</Button>
+            <Button variant="danger" disabled={pending} onClick={confirmDelete}>
+              {pending ? 'Deleting…' : 'Delete'}
+            </Button>
+          </div>
         </div>
       </Dialog>
     )
@@ -232,7 +240,7 @@ function LibraryDialogContent({
   if (dialog.kind === 'move') {
     return (
       <Dialog title="Move to" description="Choose a destination folder or the top-level library." onClose={onClose}>
-        <div className="move-list">
+        <div className="move-list" aria-busy={pending}>
           <button type="button" onClick={() => moveTo(null)} disabled={pending}>
             <span><Layers3 size={17} /> Library</span>
           </button>
@@ -245,6 +253,7 @@ function LibraryDialogContent({
             ))}
         </div>
         <DialogError error={error} />
+        {pending ? <p className="dialog-pending" role="status">Moving…</p> : null}
       </Dialog>
     )
   }
@@ -257,7 +266,7 @@ function LibraryDialogContent({
         onClose={onClose}
         wide
       >
-        <form className="dialog-form" onSubmit={submitImport}>
+        <form className="dialog-form" aria-busy={pending} onSubmit={submitImport}>
           <label className="import-area">
             <span>Cards</span>
             <textarea
@@ -266,6 +275,7 @@ function LibraryDialogContent({
               onChange={(event) => setImportText(event.target.value)}
               placeholder={'The **mitochondria** is the powerhouse of the cell\n- mitochondria'}
               required
+              disabled={pending}
             />
           </label>
           <div className="file-picker">
@@ -275,6 +285,7 @@ function LibraryDialogContent({
               <input
                 type="file"
                 accept=".txt,.md,text/plain,text/markdown"
+                disabled={pending}
                 onChange={async (event) => {
                   const file = event.target.files?.[0]
                   if (file) setImportText(await file.text())
@@ -283,6 +294,7 @@ function LibraryDialogContent({
             </label>
           </div>
           <DialogError error={error} />
+          {pending ? <p className="dialog-pending" role="status">Importing cards…</p> : null}
           <DialogActions pending={pending} onClose={onClose} action="Import" icon={<Upload size={17} />} />
         </form>
       </Dialog>
@@ -291,14 +303,25 @@ function LibraryDialogContent({
 
   return (
     <Dialog title={dialog.card ? 'Edit card' : 'New card'} onClose={onClose} wide>
-      <form className="dialog-form" onSubmit={submitCard}>
+      <form className="dialog-form" aria-busy={pending} onSubmit={submitCard}>
         <label>
           <span>Front</span>
-          <textarea rows={5} value={front} onChange={(event) => setFront(event.target.value)} required />
+          <textarea
+            rows={5}
+            value={front}
+            onChange={(event) => setFront(event.target.value)}
+            required
+            disabled={pending}
+          />
         </label>
         <label>
           <span>Back <small>- bullet · **bold**</small></span>
-          <textarea rows={5} value={back} onChange={(event) => setBack(event.target.value)} />
+          <textarea
+            rows={5}
+            value={back}
+            onChange={(event) => setBack(event.target.value)}
+            disabled={pending}
+          />
         </label>
         <DialogError error={error} />
         <DialogActions pending={pending} onClose={onClose} action="Save card" />
