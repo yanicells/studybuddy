@@ -1,14 +1,13 @@
 # StudyBuddy
 
-Personal, local-first flashcard app. TanStack Start + React + SQLite.
+Personal, local-first flashcard app. TanStack Start + React + Convex.
 
 ## Do
 
 - Keep changes small and local. No extra features.
-- Put pure domain logic in `src/core`, persistence and integrations in `src/server`, and keep React UI in `src/components` and `src/features` thin.
+- Put pure domain logic in `src/core`, persistence and integrations in `convex` and `src/server`, and keep React UI in `src/components` and `src/features` thin.
 - Validate every server-function input with the schemas in `src/features/library/library.schemas.ts`.
-- SQLite is the source of truth.
-- Preserve the existing SQLite schema and legacy macOS database-path fallback unless a tested migration is included.
+- Convex is the source of truth.
 - Keep desktop and mobile workflows covered when changing interactive UI.
 - Match existing style. Don't refactor unrelated code.
 - Never commit `.env` or secrets.
