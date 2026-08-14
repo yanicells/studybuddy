@@ -4,8 +4,8 @@ import { buildQuestion } from './quiz'
 import type { Card } from './types'
 
 const card: Card = {
-  id: 1,
-  deckId: 1,
+  id: '1',
+  deckId: '1',
   front: 'The mitochondria is the powerhouse of the cell',
   back: 'mitochondria',
   highlights: [{ side: 'front', text: 'mitochondria' }],
@@ -23,7 +23,7 @@ const card: Card = {
 
 const other: Card = {
   ...card,
-  id: 2,
+  id: '2',
   front: 'The control center of the cell',
   back: 'nucleus',
   highlights: [{ side: 'back', text: 'nucleus' }],

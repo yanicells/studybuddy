@@ -169,8 +169,8 @@ function defer<T>() {
 
 const dueCards: Card[] = [
   {
-    id: 1,
-    deckId: 1,
+    id: '1',
+    deckId: '1',
     front: 'The mitochondria is the powerhouse of the cell',
     back: 'mitochondria',
     highlights: [{ side: 'front', text: 'mitochondria' }],
@@ -186,8 +186,8 @@ const dueCards: Card[] = [
     lastReviewedAt: null,
   },
   {
-    id: 2,
-    deckId: 1,
+    id: '2',
+    deckId: '1',
     front: 'The control center of the cell',
     back: 'nucleus',
     highlights: [{ side: 'back', text: 'nucleus' }],
@@ -203,8 +203,8 @@ const dueCards: Card[] = [
     lastReviewedAt: null,
   },
   {
-    id: 3,
-    deckId: 1,
+    id: '3',
+    deckId: '1',
     front: 'The watery interior of the cell',
     back: 'cytoplasm',
     highlights: [{ side: 'back', text: 'cytoplasm' }],
@@ -220,8 +220,8 @@ const dueCards: Card[] = [
     lastReviewedAt: null,
   },
   {
-    id: 4,
-    deckId: 1,
+    id: '4',
+    deckId: '1',
     front: 'The outer boundary of the cell',
     back: 'membrane',
     highlights: [{ side: 'back', text: 'membrane' }],
@@ -240,7 +240,7 @@ const dueCards: Card[] = [
 
 const multiCard: Card = {
   ...dueCards[0]!,
-  id: 10,
+  id: '10',
   status: 'mastered',
   front: 'The mitochondria produces ATP in the cell',
   back: 'energy',
@@ -252,7 +252,7 @@ const multiCard: Card = {
 
 const bulletCard: Card = {
   ...dueCards[0]!,
-  id: 11,
+  id: '11',
   front: 'Name two organelles',
   back: '- mitochondria\n- nucleus',
   highlights: [{ side: 'back', text: 'mitochondria' }],

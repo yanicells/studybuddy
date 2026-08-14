@@ -5,8 +5,8 @@ import type { Card, Status } from './types'
 
 function cards(count: number, status: Status = 'new'): Card[] {
   return Array.from({ length: count }, (_, index) => ({
-    id: index + 1,
-    deckId: 1,
+    id: String(index + 1),
+    deckId: '1',
     front: `front ${index + 1}`,
     back: `back ${index + 1}`,
     highlights: [],
@@ -23,8 +23,8 @@ function cards(count: number, status: Status = 'new'): Card[] {
   }))
 }
 
-function play(session: Session, count: number, correct = true): number[] {
-  const seen: number[] = []
+function play(session: Session, count: number, correct = true): string[] {
+  const seen: string[] = []
   for (let index = 0; index < count; index += 1) {
     const id = session.nextCard()
     expect(id).not.toBeNull()
@@ -58,7 +58,7 @@ describe('study session rounds', () => {
     const first = play(session, 8)
     const second = play(session, 12)
     expect(second.some((id) => first.includes(id))).toBe(false)
-    const third: number[] = []
+    const third: string[] = []
     for (let index = 0; index < 8; index += 1) {
       const id = session.nextCard()!
       third.push(id)

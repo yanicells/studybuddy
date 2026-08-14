@@ -16,8 +16,8 @@ import {
 interface LibraryTreeProps {
   library: LibrarySnapshot
   selection: Selection
-  expanded: Set<number>
-  onToggleFolder: (id: number) => void
+  expanded: Set<string>
+  onToggleFolder: (id: string) => void
   onSelect: (selection: Selection) => void
   onDialog: (dialog: LibraryDialog) => void
 }

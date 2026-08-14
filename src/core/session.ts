@@ -11,10 +11,10 @@ export class Session {
   readonly total: number
   private readonly startedWithNew: boolean
   private roundIndex = 1
-  private pool: number[]
-  private queue: number[] = []
-  private waiting = new Map<number, number>()
-  private track = new Map<number, Track>()
+  private pool: string[]
+  private queue: string[] = []
+  private waiting = new Map<string, number>()
+  private track = new Map<string, Track>()
   private answeredThisRound = 0
   private sizeThisRound = 0
 
@@ -33,7 +33,7 @@ export class Session {
     this.fillRound()
   }
 
-  nextCard(): number | null {
+  nextCard(): string | null {
     while (this.queue.length === 0) {
       if (this.pool.length > 0) {
         this.roundIndex += 1
@@ -49,7 +49,7 @@ export class Session {
     return this.queue.shift() ?? null
   }
 
-  answer(cardId: number, correct: boolean): void {
+  answer(cardId: string, correct: boolean): void {
     const item = this.track.get(cardId) ?? {
       correct: 0,
       wrong: 0,
@@ -93,11 +93,11 @@ export class Session {
     return count
   }
 
-  isWaiting(cardId: number): boolean {
+  isWaiting(cardId: string): boolean {
     return this.waiting.has(cardId)
   }
 
-  cardHits(cardId: number): [number, number] {
+  cardHits(cardId: string): [number, number] {
     const item = this.track.get(cardId) ?? {
       correct: 0,
       wrong: 0,
@@ -110,10 +110,10 @@ export class Session {
 
   private fillRound(): void {
     const size = roundSize(this.roundIndex, this.startedWithNew)
-    const next: number[] = []
+    const next: string[] = []
     const due = [...this.waiting.entries()]
       .filter(([, dueRound]) => dueRound <= this.roundIndex)
-      .sort((left, right) => left[1] - right[1] || left[0] - right[0])
+      .sort((left, right) => left[1] - right[1] || left[0].localeCompare(right[0]))
     for (const [id] of due) {
       if (next.length >= size) break
       this.waiting.delete(id)

@@ -308,7 +308,7 @@ export function CreatePlaceButtons({
   className,
   onDialog,
 }: Readonly<{
-  parentId: number | null
+  parentId: string | null
   className?: string
   onDialog: (dialog: LibraryDialog) => void
 }>) {

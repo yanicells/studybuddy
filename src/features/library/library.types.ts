@@ -1,8 +1,8 @@
 import type { Card, Deck, Folder } from '../../core/types'
 
 export type Selection =
-  | { kind: 'folder'; id: number }
-  | { kind: 'deck'; id: number }
+  | { kind: 'folder'; id: string }
+  | { kind: 'deck'; id: string }
   | null
 
 export type StatusFilter = 'all' | 'new' | 'learning' | 'mastered'
@@ -12,25 +12,25 @@ export type LibraryDialog =
       kind: 'name'
       entity: 'folder' | 'deck'
       mode: 'create' | 'rename'
-      id: number | null
-      parentId: number | null
+      id: string | null
+      parentId: string | null
       initialName: string
     }
   | {
       kind: 'confirm'
       entity: 'folder' | 'deck' | 'card'
-      id: number
+      id: string
       title: string
       description: string
     }
-  | { kind: 'move'; entity: 'folder' | 'deck'; id: number }
-  | { kind: 'import'; deckId: number | null; folderId: number | null }
-  | { kind: 'card'; deckId: number; card: Card | null }
+  | { kind: 'move'; entity: 'folder' | 'deck'; id: string }
+  | { kind: 'import'; deckId: string | null; folderId: string | null }
+  | { kind: 'card'; deckId: string; card: Card | null }
   | null
 
 export function createNameDialog(
   entity: 'folder' | 'deck',
-  parentId: number | null,
+  parentId: string | null,
 ): Extract<LibraryDialog, { kind: 'name' }> {
   return {
     kind: 'name',
@@ -64,11 +64,11 @@ export function renameDeckDialog(deck: Deck): LibraryDialog {
   }
 }
 
-export function moveItemDialog(entity: 'folder' | 'deck', id: number): LibraryDialog {
+export function moveItemDialog(entity: 'folder' | 'deck', id: string): LibraryDialog {
   return { kind: 'move', entity, id }
 }
 
-export function deleteFolderDialog(id: number): LibraryDialog {
+export function deleteFolderDialog(id: string): LibraryDialog {
   return {
     kind: 'confirm',
     entity: 'folder',
@@ -78,7 +78,7 @@ export function deleteFolderDialog(id: number): LibraryDialog {
   }
 }
 
-export function deleteDeckDialog(id: number): LibraryDialog {
+export function deleteDeckDialog(id: string): LibraryDialog {
   return {
     kind: 'confirm',
     entity: 'deck',

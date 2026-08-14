@@ -1,6 +1,13 @@
-import { parseCards } from '../core/import'
-import type { Database } from './database.server'
-import { createDeck, createFolder, importCards, listFolders } from './library.server'
+import { parseCards } from '../src/core/import'
+
+import type { Id } from './_generated/dataModel'
+import { mutation } from './_generated/server'
+import {
+  createDeckRecord,
+  createFolderRecord,
+  importCardRecords,
+  listFolderDocs,
+} from './library'
 
 const ARCHITECTURE_CARDS = `What is computer architecture?
 - Attributes of a system that are **visible to a programmer**
@@ -178,14 +185,21 @@ What can the designer focus on at each hierarchical level?
 - **Structure** and **function**
 - Behavior depends only on a simplified view of the next lower level`
 
-export async function seedSampleIfMissing(db: Database): Promise<boolean> {
-  if ((await listFolders(db)).some((folder) => folder.name === 'CSCI 50.01')) return false
+export const seedSampleIfMissing = mutation({
+  args: {},
+  handler: async (ctx) => {
+    if ((await listFolderDocs(ctx)).some((folder) => folder.name === 'CSCI 50.01')) return false
 
-  const course = await createFolder(db, null, 'CSCI 50.01')
-  const lecture = await createFolder(db, course.id, 'Hardware Lecture')
-  const architecture = await createDeck(db, lecture.id, 'Architecture vs Organization')
-  const structure = await createDeck(db, lecture.id, 'Structure and Function')
-  await importCards(db, architecture.id, parseCards(ARCHITECTURE_CARDS))
-  await importCards(db, structure.id, parseCards(STRUCTURE_CARDS))
-  return true
-}
+    const course = await createFolderRecord(ctx, null, 'CSCI 50.01')
+    const lecture = await createFolderRecord(ctx, course.id as Id<'folders'>, 'Hardware Lecture')
+    const architecture = await createDeckRecord(
+      ctx,
+      lecture.id as Id<'folders'>,
+      'Architecture vs Organization',
+    )
+    const structure = await createDeckRecord(ctx, lecture.id as Id<'folders'>, 'Structure and Function')
+    await importCardRecords(ctx, architecture.id as Id<'decks'>, parseCards(ARCHITECTURE_CARDS))
+    await importCardRecords(ctx, structure.id as Id<'decks'>, parseCards(STRUCTURE_CARDS))
+    return true
+  },
+})

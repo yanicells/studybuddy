@@ -40,25 +40,25 @@ describe('study stats', () => {
   it('rolls folder stats through nested decks', () => {
     const library: LibrarySnapshot = {
       folders: [
-        { id: 1, parentId: null, name: 'Course', position: 0 },
-        { id: 2, parentId: 1, name: 'Week', position: 0 },
+        { id: '1', parentId: null, name: 'Course', position: 0 },
+        { id: '2', parentId: '1', name: 'Week', position: 0 },
       ],
       decks: [
-        { id: 10, folderId: 2, name: 'A', position: 0 },
-        { id: 11, folderId: null, name: 'Loose', position: 0 },
+        { id: '10', folderId: '2', name: 'A', position: 0 },
+        { id: '11', folderId: null, name: 'Loose', position: 0 },
       ],
       cardsByDeck: {},
       statsByDeck: {
-        10: { new: 2, learning: 1, mastered: 3, due: 4 },
-        11: { new: 9, learning: 0, mastered: 0, due: 9 },
+        '10': { new: 2, learning: 1, mastered: 3, due: 4 },
+        '11': { new: 9, learning: 0, mastered: 0, due: 9 },
       },
       study: { due: 13, reviewedToday: 0, streak: 0 },
     }
-    expect(descendantDeckIds(library, 1)).toEqual([10])
-    expect(folderPath(library.folders, 2)).toEqual([2, 1])
-    expect(folderPath(library.folders, 1)).toEqual([1])
+    expect(descendantDeckIds(library, '1')).toEqual(['10'])
+    expect(folderPath(library.folders, '2')).toEqual(['2', '1'])
+    expect(folderPath(library.folders, '1')).toEqual(['1'])
     expect(folderPath(library.folders, null)).toEqual([])
-    expect(rollupStats(library, descendantDeckIds(library, 1))).toEqual({
+    expect(rollupStats(library, descendantDeckIds(library, '1'))).toEqual({
       new: 2,
       learning: 1,
       mastered: 3,

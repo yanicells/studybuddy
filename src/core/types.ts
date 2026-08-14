@@ -2,15 +2,15 @@ export type Status = 'new' | 'learning' | 'mastered'
 export type Side = 'front' | 'back'
 
 export interface Folder {
-  id: number
-  parentId: number | null
+  id: string
+  parentId: string | null
   name: string
   position: number
 }
 
 export interface Deck {
-  id: number
-  folderId: number | null
+  id: string
+  folderId: string | null
   name: string
   position: number
 }
@@ -27,8 +27,8 @@ export interface NewCard {
 }
 
 export interface Card extends NewCard {
-  id: number
-  deckId: number
+  id: string
+  deckId: string
   position: number
   status: Status
   ease: number
@@ -57,8 +57,8 @@ export interface StudyStats {
 export interface LibrarySnapshot {
   folders: Folder[]
   decks: Deck[]
-  cardsByDeck: Record<number, Card[]>
-  statsByDeck: Record<number, DeckStats>
+  cardsByDeck: Record<string, Card[]>
+  statsByDeck: Record<string, DeckStats>
   study: StudyStats
 }
 
@@ -86,7 +86,7 @@ export interface QuestionStep {
 }
 
 export interface Question {
-  cardId: number
+  cardId: string
   front: string
   back: string
   prompt: Prompt
