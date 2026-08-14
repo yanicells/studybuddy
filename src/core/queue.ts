@@ -16,7 +16,7 @@ export function buildStudyQueue(cards: Card[], now = new Date()): Card[] {
 }
 
 function byPosition(left: Card, right: Card): number {
-  return left.position - right.position || left.id - right.id
+  return left.position - right.position || left.id.localeCompare(right.id)
 }
 
 function byDueThenPosition(left: Card, right: Card): number {

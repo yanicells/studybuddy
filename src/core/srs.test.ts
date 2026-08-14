@@ -7,8 +7,8 @@ const NOW = new Date('2026-08-13T03:00:00.000Z')
 
 function card(status: Status): Card {
   return {
-    id: 1,
-    deckId: 1,
+    id: '1',
+    deckId: '1',
     front: 'front',
     back: 'back',
     highlights: [],
@@ -62,8 +62,8 @@ describe('spaced repetition', () => {
   })
 
   it('spreads longer review dates so cards do not all return on the same day', () => {
-    const first = applyAnswer({ ...card('mastered'), id: 1, intervalDays: 1 }, true, NOW)
-    const second = applyAnswer({ ...card('mastered'), id: 2, intervalDays: 1 }, true, NOW)
+    const first = applyAnswer({ ...card('mastered'), id: '1', intervalDays: 1 }, true, NOW)
+    const second = applyAnswer({ ...card('mastered'), id: '2', intervalDays: 1 }, true, NOW)
     const firstDays = (new Date(first.dueAt!).getTime() - NOW.getTime()) / 86_400_000
     const secondDays = (new Date(second.dueAt!).getTime() - NOW.getTime()) / 86_400_000
 

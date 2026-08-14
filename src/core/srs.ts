@@ -46,10 +46,18 @@ export function applyAnswer(card: Card, correct: boolean, now = new Date()): Car
   return next
 }
 
-function fuzzedInterval(cardId: number, intervalDays: number): number {
+function fuzzedInterval(cardId: string, intervalDays: number): number {
   if (intervalDays < 3) return intervalDays
-  const offset = ((cardId * 31 + Math.round(intervalDays * 7)) % 3) - 1
+  const offset = ((idSeed(cardId) + Math.round(intervalDays * 7)) % 3) - 1
   return Math.max(1, intervalDays + offset)
+}
+
+function idSeed(id: string): number {
+  let hash = 0
+  for (let index = 0; index < id.length; index += 1) {
+    hash = Math.imul(hash, 31) + id.charCodeAt(index)
+  }
+  return Math.abs(hash)
 }
 
 function addDays(date: Date, days: number): string {

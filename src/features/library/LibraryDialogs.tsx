@@ -82,7 +82,7 @@ function LibraryDialogContent({
   const [error, setError] = useState<string | null>(null)
 
   const blockedFolders = useMemo(() => {
-    if (dialog?.kind !== 'move' || dialog.entity !== 'folder') return new Set<number>()
+    if (dialog?.kind !== 'move' || dialog.entity !== 'folder') return new Set<string>()
     const blocked = new Set([dialog.id])
     let changed = true
     while (changed) {
@@ -182,7 +182,7 @@ function LibraryDialogContent({
     })
   }
 
-  async function moveTo(parentId: number | null) {
+  async function moveTo(parentId: string | null) {
     if (dialog?.kind !== 'move') return
     await commit(async () => {
       if (dialog.entity === 'folder') {

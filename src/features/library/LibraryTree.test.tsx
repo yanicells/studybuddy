@@ -21,7 +21,7 @@ describe('LibraryTree', () => {
 
     await user.click(screen.getByRole('button', { name: 'Course' }))
 
-    expect(onSelect).toHaveBeenCalledWith({ kind: 'folder', id: 1 })
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'folder', id: '1' })
     expect(onToggleFolder).not.toHaveBeenCalled()
   })
 
@@ -33,7 +33,7 @@ describe('LibraryTree', () => {
 
     await user.click(screen.getByRole('button', { name: 'Collapse Course' }))
 
-    expect(onToggleFolder).toHaveBeenCalledWith(1)
+    expect(onToggleFolder).toHaveBeenCalledWith('1')
     expect(onSelect).not.toHaveBeenCalled()
   })
 
@@ -52,7 +52,7 @@ describe('LibraryTree', () => {
       kind: 'name',
       entity: 'folder',
       mode: 'rename',
-      id: 1,
+      id: '1',
       parentId: null,
       initialName: 'Course',
     })
@@ -72,7 +72,7 @@ describe('LibraryTree', () => {
     expect(onDialog).toHaveBeenCalledWith({
       kind: 'confirm',
       entity: 'deck',
-      id: 10,
+      id: '10',
       title: 'Delete deck?',
       description: 'Every card and review in this deck will be removed.',
     })
@@ -84,15 +84,15 @@ function renderTree({
   onSelect = vi.fn(),
   onDialog = vi.fn(),
 }: {
-  onToggleFolder?: (id: number) => void
-  onSelect?: (selection: { kind: 'folder' | 'deck'; id: number } | null) => void
+  onToggleFolder?: (id: string) => void
+  onSelect?: (selection: { kind: 'folder' | 'deck'; id: string } | null) => void
   onDialog?: (dialog: LibraryDialog) => void
 } = {}) {
   render(
     <LibraryTree
       library={library}
-      selection={{ kind: 'folder', id: 1 }}
-      expanded={new Set([1])}
+      selection={{ kind: 'folder', id: '1' }}
+      expanded={new Set(['1'])}
       onToggleFolder={onToggleFolder}
       onSelect={onSelect}
       onDialog={onDialog}
@@ -101,9 +101,9 @@ function renderTree({
 }
 
 const library: LibrarySnapshot = {
-  folders: [{ id: 1, parentId: null, name: 'Course', position: 0 }],
-  decks: [{ id: 10, folderId: 1, name: 'Cells', position: 0 }],
+  folders: [{ id: '1', parentId: null, name: 'Course', position: 0 }],
+  decks: [{ id: '10', folderId: '1', name: 'Cells', position: 0 }],
   cardsByDeck: {},
-  statsByDeck: { 10: { ...EMPTY_STATS } },
+  statsByDeck: { '10': { ...EMPTY_STATS } },
   study: { due: 0, reviewedToday: 0, streak: 0 },
 }

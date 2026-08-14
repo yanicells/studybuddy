@@ -10,17 +10,15 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "db:generate": "drizzle-kit generate"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "latest",
     "@fontsource/ibm-plex-sans": "latest",
-    "@libsql/client": "^0.17.4",
     "@tanstack/react-router": "latest",
     "@tanstack/react-start": "latest",
+    "convex": "^1.44.0",
     "dotenv": "^17.4.2",
-    "drizzle-orm": "^0.45.2",
     "lucide-react": "latest",
     "nitro": "latest",
     "openai": "^7.4.0",
@@ -29,6 +27,7 @@
     "zod": "latest"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@eslint/js": "latest",
     "@playwright/test": "latest",
     "@testing-library/jest-dom": "latest",
@@ -38,7 +37,7 @@
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@vitejs/plugin-react": "latest",
-    "drizzle-kit": "^0.31.10",
+    "convex-test": "^0.0.55",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "jsdom": "latest",

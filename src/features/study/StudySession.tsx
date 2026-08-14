@@ -37,7 +37,7 @@ export function StudySession({
   const [stepIndex, setStepIndex] = useState(0)
   const [missed, setMissed] = useState(false)
   const answering = useRef(false)
-  const saves = useRef(new Map<number, Promise<void>>())
+  const saves = useRef(new Map<string, Promise<void>>())
   const done = question === null
   const step = question?.steps[stepIndex]
   const lastStep = question != null && stepIndex === question.steps.length - 1
@@ -320,9 +320,9 @@ function ChoiceList({
 }
 
 function persistAnswer(
-  queue: Map<number, Promise<void>>,
-  cards: Map<number, Card>,
-  cardId: number,
+  queue: Map<string, Promise<void>>,
+  cards: Map<string, Card>,
+  cardId: string,
   correct: boolean,
   onNotice: (message: string) => void,
 ) {
@@ -339,7 +339,7 @@ function persistAnswer(
   queue.set(cardId, next)
 }
 
-function nextQuestion(session: Session, cards: Map<number, Card>): Question | null {
+function nextQuestion(session: Session, cards: Map<string, Card>): Question | null {
   const id = session.nextCard()
   if (id === null) return null
   const card = cards.get(id)

@@ -23,7 +23,7 @@ export function studyStreak(reviewTimes: string[], now = new Date()): number {
   return streak
 }
 
-export function sumStats(statsByDeck: Record<number, DeckStats>): DeckStats {
+export function sumStats(statsByDeck: Record<string, DeckStats>): DeckStats {
   const total = { ...EMPTY_STATS }
   for (const stats of Object.values(statsByDeck)) {
     total.new += stats.new
@@ -34,9 +34,9 @@ export function sumStats(statsByDeck: Record<number, DeckStats>): DeckStats {
   return total
 }
 
-export function folderPath(folders: Folder[], startId: number | null): number[] {
+export function folderPath(folders: Folder[], startId: string | null): string[] {
   const parents = new Map(folders.map((folder) => [folder.id, folder.parentId]))
-  const ids: number[] = []
+  const ids: string[] = []
   let current = startId
   while (current !== null) {
     ids.push(current)
@@ -45,14 +45,14 @@ export function folderPath(folders: Folder[], startId: number | null): number[] 
   return ids
 }
 
-export function descendantDeckIds(library: LibrarySnapshot, folderId: number): number[] {
-  const children = new Map<number | null, number[]>()
+export function descendantDeckIds(library: LibrarySnapshot, folderId: string): string[] {
+  const children = new Map<string | null, string[]>()
   for (const folder of library.folders) {
     const siblings = children.get(folder.parentId) ?? []
     siblings.push(folder.id)
     children.set(folder.parentId, siblings)
   }
-  const folderIds = new Set<number>([folderId])
+  const folderIds = new Set<string>([folderId])
   const stack = [...(children.get(folderId) ?? [])]
   while (stack.length > 0) {
     const next = stack.pop()!
@@ -64,7 +64,7 @@ export function descendantDeckIds(library: LibrarySnapshot, folderId: number): n
     .map((deck) => deck.id)
 }
 
-export function rollupStats(library: LibrarySnapshot, deckIds: number[]): DeckStats {
+export function rollupStats(library: LibrarySnapshot, deckIds: string[]): DeckStats {
   const total = { ...EMPTY_STATS }
   for (const id of deckIds) {
     const stats = library.statsByDeck[id]

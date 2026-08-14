@@ -13,3 +13,4 @@
 /.tmp
 /playwright-report
 /test-results
+/.convex

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-const id = z.number().int().positive()
+const id = z.string().min(1)
 const nullableId = id.nullable()
 const name = z.string().trim().min(1).max(120)
 

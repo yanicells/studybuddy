@@ -7,7 +7,7 @@ test('supports the complete library workflow', async ({ page }) => {
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
-  await expect(page.locator('.home-today')).toContainText('2 decks')
+  await expect(page.locator('.home-today')).toContainText('4 decks')
   await expect(page.getByText(/due today/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Folder', exact: true }).click()

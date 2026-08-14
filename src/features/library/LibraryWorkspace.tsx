@@ -319,8 +319,8 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   )
 }
 
-function initialExpanded(library: LibrarySnapshot): Set<number> {
-  const expanded = new Set<number>()
+function initialExpanded(library: LibrarySnapshot): Set<string> {
+  const expanded = new Set<string>()
   for (const folder of library.folders) {
     if (folder.parentId === null) expanded.add(folder.id)
   }
