@@ -88,6 +88,10 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
   await expect(page.locator('.deck-overview__summary')).toContainText('due')
   await page.getByRole('button', { name: /Study \d+/ }).click()
+  const studyDialog = page.getByRole('dialog', { name: 'Study' })
+  await expect(studyDialog.getByRole('button', { name: /Due only/ })).toBeVisible()
+  await expect(studyDialog.getByRole('button', { name: /All cards/ })).toBeVisible()
+  await studyDialog.getByRole('button', { name: /Due only/ }).click()
 
   await expect(page.getByLabel('Answer choices')).toBeVisible()
   await expect(page.getByLabel('Answer choices').getByRole('button')).toHaveCount(4)

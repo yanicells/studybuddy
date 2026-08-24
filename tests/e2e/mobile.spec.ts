@@ -13,6 +13,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 
   await page.getByRole('button', { name: /Study/ }).click()
+  await page.getByRole('dialog', { name: 'Study' }).getByRole('button', { name: /Due only/ }).click()
   await expect(page.getByLabel('Answer choices')).toBeVisible()
   await expect(page.getByLabel('Answer choices').getByRole('button')).toHaveCount(4)
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
