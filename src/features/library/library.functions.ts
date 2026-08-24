@@ -168,7 +168,10 @@ export const startStudyFn = createServerFn({ method: 'POST' })
   .validator(startStudySchema)
   .handler(async ({ data }) => {
     const { api, asId, getConvex } = await import('../../server/convex.server')
-    return getConvex().query(api.library.startStudy, { deckId: asId<'decks'>(data.deckId) })
+    return getConvex().query(api.library.startStudy, {
+      deckId: asId<'decks'>(data.deckId),
+      mode: data.mode,
+    })
   })
 
 export const recordAnswerFn = createServerFn({ method: 'POST' })

@@ -86,6 +86,33 @@ describe('library repository', () => {
     ])
   })
 
+  it('starts study with due cards or the whole deck', async () => {
+    const t = testConvex()
+    const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Mixed' })
+    const dueCard = await t.mutation(api.library.createCard, {
+      deckId: deckId(deck.id),
+      card: { front: 'Due', back: 'Now', highlights: [] },
+    })
+    const laterCard = await t.mutation(api.library.createCard, {
+      deckId: deckId(deck.id),
+      card: { front: 'Later', back: 'Wait', highlights: [] },
+    })
+    await t.run(async (ctx) => {
+      await ctx.db.patch(cardId(laterCard.id), {
+        status: 'mastered',
+        dueAt: '2099-01-01T00:00:00.000Z',
+        intervalDays: 10,
+      })
+    })
+
+    const due = await t.query(api.library.startStudy, { deckId: deckId(deck.id), mode: 'due' })
+    const all = await t.query(api.library.startStudy, { deckId: deckId(deck.id), mode: 'all' })
+    const fallback = await t.query(api.library.startStudy, { deckId: deckId(deck.id) })
+    expect(due.dueCards.map((card) => card.id)).toEqual([dueCard.id])
+    expect(all.dueCards.map((card) => card.id)).toEqual([laterCard.id, dueCard.id])
+    expect(fallback.dueCards.map((card) => card.id)).toEqual([dueCard.id])
+  })
+
   it('cascades deck deletion to cards', async () => {
     const t = testConvex()
     const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Temporary' })

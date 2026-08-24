@@ -67,4 +67,24 @@ describe('study queue', () => {
     expect(queue[0]?.id).toBe('100')
     expect(queue.filter((item) => item.status === 'new')).toHaveLength(NEW_CARD_LIMIT)
   })
+
+  it('includes not-yet-due mastered cards when studying all', () => {
+    const queue = buildStudyQueue(
+      [
+        card('1', 'mastered', { dueAt: '2026-08-20T12:00:00.000Z' }),
+        card('2', 'new'),
+        card('3', 'learning'),
+      ],
+      NOW,
+      'all',
+    )
+    expect(queue.map((item) => item.id)).toEqual(['3', '1', '2'])
+  })
+
+  it('does not cap new cards when studying all', () => {
+    const cards = Array.from({ length: NEW_CARD_LIMIT + 8 }, (_, index) =>
+      card(String(index + 1), 'new'),
+    )
+    expect(buildStudyQueue(cards, NOW, 'all')).toHaveLength(NEW_CARD_LIMIT + 8)
+  })
 })

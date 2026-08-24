@@ -15,8 +15,9 @@ import { useRouter } from '@tanstack/react-router'
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
 import { StudyPending } from '../../components/PendingScreens'
+import type { StudyMode } from '../../core/queue'
 import { folderPath, highestDueDeck } from '../../core/stats'
-import type { Deck, LibrarySnapshot } from '../../core/types'
+import type { LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
 import { startStudyFn } from './library.functions'
 import { LibraryContent, CreatePlaceButtons } from './LibraryContent'
@@ -28,6 +29,7 @@ import {
   moveItemDialog,
   renameDeckDialog,
   renameFolderDialog,
+  studyDialog,
   type LibraryDialog,
   type Selection,
   type StatusFilter,
@@ -97,12 +99,12 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   const closeDialog = useCallback(() => setDialog(null), [])
   const createParentId = selectedFolder?.id ?? null
 
-  async function beginStudy(deck?: Deck) {
-    const target = deck ?? selectedDeck ?? highestDueDeck(library)
+  async function beginStudy(deckId: string, mode: StudyMode) {
+    const target = library.decks.find((deck) => deck.id === deckId)
     if (!target) return
     setStartingStudy(true)
     try {
-      const payload = await startStudyFn({ data: { deckId: target.id } })
+      const payload = await startStudyFn({ data: { deckId: target.id, mode } })
       if (payload.dueCards.length === 0) {
         setNotice('This deck has no cards yet.')
         return
@@ -193,7 +195,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
                 size="small"
                 icon={<Play size={16} fill="currentColor" />}
                 disabled={startingStudy}
-                onClick={() => void beginStudy(studyDeck)}
+                onClick={() => setDialog(studyDialog(studyDeck.id))}
               >
                 {startingStudy ? 'Starting…' : due > 0 ? `Study ${due}` : 'Study'}
               </Button>
@@ -319,6 +321,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
         onClose={closeDialog}
         onSelect={select}
         onNotice={setNotice}
+        onStartStudy={(deckId, mode) => void beginStudy(deckId, mode)}
       />
     </main>
   )
