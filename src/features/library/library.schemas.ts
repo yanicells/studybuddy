@@ -30,7 +30,10 @@ export const importSchema = z.object({
   text: z.string().trim().min(1).max(500_000),
 })
 
-export const startStudySchema = z.object({ deckId: id })
+export const startStudySchema = z.object({
+  deckId: id,
+  mode: z.enum(['due', 'all']),
+})
 
 export const recordAnswerSchema = z.object({
   cardId: id,

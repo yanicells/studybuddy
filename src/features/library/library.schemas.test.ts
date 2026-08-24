@@ -6,6 +6,7 @@ import {
   moveSchema,
   nameSchema,
   recordAnswerSchema,
+  startStudySchema,
 } from './library.schemas'
 
 describe('library server boundaries', () => {
@@ -46,5 +47,14 @@ describe('library server boundaries', () => {
       cardId: '4',
       correct: false,
     })
+  })
+
+  it('requires a study mode of due or all', () => {
+    expect(startStudySchema.parse({ deckId: '1', mode: 'all' })).toEqual({
+      deckId: '1',
+      mode: 'all',
+    })
+    expect(() => startStudySchema.parse({ deckId: '1' })).toThrow()
+    expect(() => startStudySchema.parse({ deckId: '1', mode: 'random' })).toThrow()
   })
 })
