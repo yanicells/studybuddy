@@ -107,8 +107,10 @@ describe('library repository', () => {
 
     const due = await t.query(api.library.startStudy, { deckId: deckId(deck.id), mode: 'due' })
     const all = await t.query(api.library.startStudy, { deckId: deckId(deck.id), mode: 'all' })
+    const fallback = await t.query(api.library.startStudy, { deckId: deckId(deck.id) })
     expect(due.dueCards.map((card) => card.id)).toEqual([dueCard.id])
     expect(all.dueCards.map((card) => card.id)).toEqual([laterCard.id, dueCard.id])
+    expect(fallback.dueCards.map((card) => card.id)).toEqual([dueCard.id])
   })
 
   it('cascades deck deletion to cards', async () => {

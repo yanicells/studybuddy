@@ -48,11 +48,11 @@ export const dueCards = query({
 export const startStudy = query({
   args: {
     deckId: v.id('decks'),
-    mode: v.union(v.literal('due'), v.literal('all')),
+    mode: v.optional(v.union(v.literal('due'), v.literal('all'))),
   },
   handler: async (ctx, args) => {
     const deckCards = await listCardRecords(ctx, args.deckId)
-    return { dueCards: buildStudyQueue(deckCards, new Date(), args.mode), deckCards }
+    return { dueCards: buildStudyQueue(deckCards, new Date(), args.mode ?? 'due'), deckCards }
   },
 })
 
