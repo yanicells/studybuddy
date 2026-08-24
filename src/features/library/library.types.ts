@@ -26,6 +26,7 @@ export type LibraryDialog =
   | { kind: 'move'; entity: 'folder' | 'deck'; id: string }
   | { kind: 'import'; deckId: string | null; folderId: string | null }
   | { kind: 'card'; deckId: string; card: Card | null }
+  | { kind: 'study'; deckId: string }
   | null
 
 export function createNameDialog(
@@ -86,4 +87,8 @@ export function deleteDeckDialog(id: string): LibraryDialog {
     title: 'Delete deck?',
     description: 'Every card and review in this deck will be removed.',
   }
+}
+
+export function studyDialog(deckId: string): LibraryDialog {
+  return { kind: 'study', deckId }
 }

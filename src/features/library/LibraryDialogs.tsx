@@ -1,4 +1,4 @@
-import { FileText, Folder, Layers3, Upload } from 'lucide-react'
+import { Clock, FileText, Folder, Layers3, Upload } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
 
@@ -6,7 +6,8 @@ import { Button } from '../../components/Button'
 import { Dialog } from '../../components/Dialog'
 import { withBulletPrefix } from '../../core/blocks'
 import { wrapMarks } from '../../core/import'
-import type { LibrarySnapshot } from '../../core/types'
+import type { StudyMode } from '../../core/queue'
+import { EMPTY_STATS, type LibrarySnapshot } from '../../core/types'
 import {
   createDeckFn,
   createFolderFn,
@@ -29,6 +30,7 @@ interface LibraryDialogsProps {
   onClose: () => void
   onSelect: (selection: Selection) => void
   onNotice: (message: string) => void
+  onStartStudy: (deckId: string, mode: StudyMode) => void
 }
 
 export function LibraryDialogs({
@@ -50,6 +52,7 @@ function LibraryDialogContent({
   onClose,
   onSelect,
   onNotice,
+  onStartStudy,
 }: LibraryDialogContentProps) {
   const router = useRouter()
   const [name, setName] = useState(() =>
@@ -297,6 +300,48 @@ function LibraryDialogContent({
           {pending ? <p className="dialog-pending" role="status">Importing cards…</p> : null}
           <DialogActions pending={pending} onClose={onClose} action="Import" icon={<Upload size={17} />} />
         </form>
+      </Dialog>
+    )
+  }
+
+  if (dialog.kind === 'study') {
+    const deck = library.decks.find((item) => item.id === dialog.deckId)
+    const stats = library.statsByDeck[dialog.deckId] ?? EMPTY_STATS
+    const total = stats.new + stats.learning + stats.mastered
+    return (
+      <Dialog
+        title="Study"
+        description={
+          deck
+            ? `Quiz due cards only, or every card in ${deck.name}.`
+            : 'Quiz due cards only, or every card in this deck.'
+        }
+        onClose={onClose}
+      >
+        <div className="move-list">
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              onStartStudy(dialog.deckId, 'due')
+            }}
+          >
+            <span><Clock size={17} /> Due only</span>
+            <small>{stats.due} due</small>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              onClose()
+              onStartStudy(dialog.deckId, 'all')
+            }}
+          >
+            <span><Layers3 size={17} /> All cards</span>
+            <small>
+              {total} {total === 1 ? 'card' : 'cards'}
+            </small>
+          </button>
+        </div>
       </Dialog>
     )
   }
