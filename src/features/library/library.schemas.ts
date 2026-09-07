@@ -17,6 +17,11 @@ export const moveSchema = z.object({
   parentId: nullableId,
 })
 
+export const reorderSchema = z.object({
+  parentId: nullableId,
+  orderedIds: z.array(id).max(1000),
+})
+
 export const cardSchema = z.object({
   id: nullableId,
   deckId: id,

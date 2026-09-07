@@ -14,12 +14,12 @@ import { useRouter } from '@tanstack/react-router'
 
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
-import { StudyPending } from '../../components/PendingScreens'
+import { OverflowMenu } from '../../components/OverflowMenu'
 import type { StudyMode } from '../../core/queue'
 import { folderPath, highestDueDeck } from '../../core/stats'
 import type { LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
-import { startStudyFn } from './library.functions'
+import { reorderDecksFn, reorderFoldersFn, startStudyFn } from './library.functions'
 import { LibraryContent, CreatePlaceButtons } from './LibraryContent'
 import { LibraryDialogs } from './LibraryDialogs'
 import { LibraryTree } from './LibraryTree'
@@ -34,6 +34,7 @@ import {
   type Selection,
   type StatusFilter,
 } from './library.types'
+import type { ReorderRequest } from './reorder'
 
 interface StudyPayload {
   deckName: string
@@ -50,6 +51,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [startingStudy, setStartingStudy] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [study, setStudy] = useState<StudyPayload | null>(null)
 
   const selectedFolderCandidate =
@@ -99,6 +101,26 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   const closeDialog = useCallback(() => setDialog(null), [])
   const createParentId = selectedFolder?.id ?? null
 
+  const handleReorder = useCallback(async (request: ReorderRequest) => {
+    setReordering(true)
+    try {
+      if (request.kind === 'folder') {
+        await reorderFoldersFn({
+          data: { parentId: request.parentId, orderedIds: request.orderedIds },
+        })
+      } else {
+        await reorderDecksFn({
+          data: { parentId: request.parentId, orderedIds: request.orderedIds },
+        })
+      }
+      await router.invalidate()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'The new order could not be saved.')
+    } finally {
+      setReordering(false)
+    }
+  }, [router])
+
   async function beginStudy(deckId: string, mode: StudyMode) {
     const target = library.decks.find((deck) => deck.id === deckId)
     if (!target) return
@@ -134,10 +156,6 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     )
   }
 
-  if (startingStudy) {
-    return <StudyPending name={studyDeck?.name ?? title} />
-  }
-
   return (
     <main className="app-shell">
       <button
@@ -160,6 +178,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           library={library}
           selection={activeSelection}
           expanded={expanded}
+          reordering={reordering}
           onToggleFolder={(id) =>
             setExpanded((current) => {
               const next = new Set(current)
@@ -170,6 +189,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           }
           onSelect={select}
           onDialog={setDialog}
+          onReorder={(request) => void handleReorder(request)}
         />
       </aside>
 
@@ -223,76 +243,77 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
                 onDialog={setDialog}
               />
             )}
-            <details className={`actions-menu${selectedFolder || selectedDeck ? '' : ' actions-menu--mobile-only'}`}>
-              <summary aria-label="More actions"><Ellipsis size={18} /></summary>
-              <div>
-                {selectedDeck ? (
-                  <>
-                    <Button
-                      className="header-actions__narrow"
-                      size="small"
-                      icon={<Import size={16} />}
-                      onClick={() => setDialog({ kind: 'import', deckId: selectedDeck.id, folderId: selectedDeck.folderId })}
-                    >Import</Button>
-                    <Button
-                      className="header-actions__narrow"
-                      variant="ghost"
-                      size="small"
-                      icon={<Plus size={16} />}
-                      onClick={() => setDialog({ kind: 'card', deckId: selectedDeck.id, card: null })}
-                    >Card</Button>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      icon={<Pencil size={16} />}
-                      onClick={() => setDialog(renameDeckDialog(selectedDeck))}
-                    >Rename</Button>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      icon={<Move size={16} />}
-                      onClick={() => setDialog(moveItemDialog('deck', selectedDeck.id))}
-                    >Move</Button>
-                    <Button
-                      variant="ghost"
-                      size="small"
-                      icon={<Trash2 size={16} />}
-                      onClick={() => setDialog(deleteDeckDialog(selectedDeck.id))}
-                    >Delete</Button>
-                  </>
-                ) : (
-                  <>
-                    <CreatePlaceButtons
-                      parentId={createParentId}
-                      className="header-actions__narrow"
-                      onDialog={setDialog}
-                    />
-                    {selectedFolder ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="small"
-                          icon={<Pencil size={16} />}
-                          onClick={() => setDialog(renameFolderDialog(selectedFolder))}
-                        >Rename</Button>
-                        <Button
-                          variant="ghost"
-                          size="small"
-                          icon={<Move size={16} />}
-                          onClick={() => setDialog(moveItemDialog('folder', selectedFolder.id))}
-                        >Move</Button>
-                        <Button
-                          variant="ghost"
-                          size="small"
-                          icon={<Trash2 size={16} />}
-                          onClick={() => setDialog(deleteFolderDialog(selectedFolder.id))}
-                        >Delete</Button>
-                      </>
-                    ) : null}
-                  </>
-                )}
-              </div>
-            </details>
+            <OverflowMenu
+              label="More actions"
+              icon={<Ellipsis size={18} />}
+              className={`actions-menu${selectedFolder || selectedDeck ? '' : ' actions-menu--mobile-only'}`}
+            >
+              {selectedDeck ? (
+                <>
+                  <Button
+                    className="header-actions__narrow"
+                    size="small"
+                    icon={<Import size={16} />}
+                    onClick={() => setDialog({ kind: 'import', deckId: selectedDeck.id, folderId: selectedDeck.folderId })}
+                  >Import</Button>
+                  <Button
+                    className="header-actions__narrow"
+                    variant="ghost"
+                    size="small"
+                    icon={<Plus size={16} />}
+                    onClick={() => setDialog({ kind: 'card', deckId: selectedDeck.id, card: null })}
+                  >Card</Button>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    icon={<Pencil size={16} />}
+                    onClick={() => setDialog(renameDeckDialog(selectedDeck))}
+                  >Rename</Button>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    icon={<Move size={16} />}
+                    onClick={() => setDialog(moveItemDialog('deck', selectedDeck.id))}
+                  >Move</Button>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    icon={<Trash2 size={16} />}
+                    onClick={() => setDialog(deleteDeckDialog(selectedDeck.id))}
+                  >Delete</Button>
+                </>
+              ) : (
+                <>
+                  <CreatePlaceButtons
+                    parentId={createParentId}
+                    className="header-actions__narrow"
+                    onDialog={setDialog}
+                  />
+                  {selectedFolder ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        icon={<Pencil size={16} />}
+                        onClick={() => setDialog(renameFolderDialog(selectedFolder))}
+                      >Rename</Button>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        icon={<Move size={16} />}
+                        onClick={() => setDialog(moveItemDialog('folder', selectedFolder.id))}
+                      >Move</Button>
+                      <Button
+                        variant="ghost"
+                        size="small"
+                        icon={<Trash2 size={16} />}
+                        onClick={() => setDialog(deleteFolderDialog(selectedFolder.id))}
+                      >Delete</Button>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </OverflowMenu>
           </div>
         </header>
         <div className="workspace-scroll">
@@ -300,9 +321,11 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
             library={library}
             selection={activeSelection}
             filter={filter}
+            reordering={reordering}
             onFilter={setFilter}
             onSelect={select}
             onDialog={setDialog}
+            onReorder={(request) => void handleReorder(request)}
           />
         </div>
         </div>

@@ -9,14 +9,19 @@ import {
   moveSchema,
   nameSchema,
   recordAnswerSchema,
+  reorderSchema,
   startStudySchema,
 } from './library.schemas'
 
 export const getLibraryFn = createServerFn({ method: 'GET' }).handler(async () => {
   const { api, getConvex } = await import('../../server/convex.server')
   const convex = getConvex()
-  await convex.mutation(api.seed.seedSampleIfMissing, {})
-  return convex.query(api.library.getSnapshot, {})
+  const snapshot = await convex.query(api.library.getSnapshot, {})
+  if (snapshot.folders.length === 0 && snapshot.decks.length === 0) {
+    await convex.mutation(api.seed.seedSampleIfMissing, {})
+    return convex.query(api.library.getSnapshot, {})
+  }
+  return snapshot
 })
 
 export const createFolderFn = createServerFn({ method: 'POST' })
@@ -91,6 +96,28 @@ export const moveDeckFn = createServerFn({ method: 'POST' })
     await getConvex().mutation(api.library.moveDeck, {
       id: asId<'decks'>(data.id),
       folderId: data.parentId === null ? null : asId<'folders'>(data.parentId),
+    })
+    return { ok: true as const }
+  })
+
+export const reorderFoldersFn = createServerFn({ method: 'POST' })
+  .validator(reorderSchema)
+  .handler(async ({ data }) => {
+    const { api, asId, getConvex } = await import('../../server/convex.server')
+    await getConvex().mutation(api.library.reorderFolders, {
+      parentId: data.parentId === null ? null : asId<'folders'>(data.parentId),
+      orderedIds: data.orderedIds.map((id) => asId<'folders'>(id)),
+    })
+    return { ok: true as const }
+  })
+
+export const reorderDecksFn = createServerFn({ method: 'POST' })
+  .validator(reorderSchema)
+  .handler(async ({ data }) => {
+    const { api, asId, getConvex } = await import('../../server/convex.server')
+    await getConvex().mutation(api.library.reorderDecks, {
+      folderId: data.parentId === null ? null : asId<'folders'>(data.parentId),
+      orderedIds: data.orderedIds.map((id) => asId<'decks'>(id)),
     })
     return { ok: true as const }
   })

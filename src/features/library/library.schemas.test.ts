@@ -6,6 +6,7 @@ import {
   moveSchema,
   nameSchema,
   recordAnswerSchema,
+  reorderSchema,
   startStudySchema,
 } from './library.schemas'
 
@@ -56,5 +57,13 @@ describe('library server boundaries', () => {
     })
     expect(() => startStudySchema.parse({ deckId: '1' })).toThrow()
     expect(() => startStudySchema.parse({ deckId: '1', mode: 'random' })).toThrow()
+  })
+
+  it('accepts a full sibling order for reordering', () => {
+    expect(reorderSchema.parse({ parentId: null, orderedIds: ['1', '2'] })).toEqual({
+      parentId: null,
+      orderedIds: ['1', '2'],
+    })
+    expect(() => reorderSchema.parse({ parentId: null, orderedIds: [''] })).toThrow()
   })
 })
