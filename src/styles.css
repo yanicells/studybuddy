@@ -842,6 +842,7 @@ summary {
   width: 100%;
   height: 4px;
   display: flex;
+  justify-content: flex-start;
   overflow: hidden;
   border-radius: 999px;
   background: #e4e4e1;
@@ -851,16 +852,9 @@ summary {
   height: 100%;
 }
 
-.stacked-progress__new {
-  background: #cfcfca;
-}
-
-.stacked-progress__learning {
+.stacked-progress__remaining {
   background: var(--accent);
-}
-
-.stacked-progress__mastered {
-  background: var(--ink);
+  transition: width 220ms ease;
 }
 
 .filter-tabs {

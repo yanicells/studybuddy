@@ -2,18 +2,17 @@ import type { DeckStats } from '../core/types'
 
 export function StackedProgress({ stats }: Readonly<{ stats: DeckStats }>) {
   const total = stats.new + stats.learning + stats.mastered
-  const value = (count: number) => (total === 0 ? 0 : (count / total) * 100)
+  const remaining = total === 0 ? 0 : Math.min(100, (stats.due / total) * 100)
   return (
-    <div className="stacked-progress" aria-label={`${stats.mastered} of ${total} cards mastered`}>
-      <span className="stacked-progress__new" style={{ width: `${value(stats.new)}%` }} />
-      <span
-        className="stacked-progress__learning"
-        style={{ width: `${value(stats.learning)}%` }}
-      />
-      <span
-        className="stacked-progress__mastered"
-        style={{ width: `${value(stats.mastered)}%` }}
-      />
+    <div
+      className="stacked-progress"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={total}
+      aria-valuenow={stats.due}
+      aria-label={`${stats.due} of ${total} cards due, ${stats.mastered} mastered`}
+    >
+      <span className="stacked-progress__remaining" style={{ width: `${remaining}%` }} />
     </div>
   )
 }
