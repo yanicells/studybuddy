@@ -15,7 +15,6 @@ import { useRouter } from '@tanstack/react-router'
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
 import { OverflowMenu } from '../../components/OverflowMenu'
-import { StudyPending } from '../../components/PendingScreens'
 import type { StudyMode } from '../../core/queue'
 import { folderPath, highestDueDeck } from '../../core/stats'
 import type { LibrarySnapshot } from '../../core/types'
@@ -133,10 +132,6 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
         }}
       />
     )
-  }
-
-  if (startingStudy) {
-    return <StudyPending name={studyDeck?.name ?? title} />
   }
 
   return (

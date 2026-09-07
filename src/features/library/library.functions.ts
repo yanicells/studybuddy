@@ -16,8 +16,12 @@ import {
 export const getLibraryFn = createServerFn({ method: 'GET' }).handler(async () => {
   const { api, getConvex } = await import('../../server/convex.server')
   const convex = getConvex()
-  await convex.mutation(api.seed.seedSampleIfMissing, {})
-  return convex.query(api.library.getSnapshot, {})
+  const snapshot = await convex.query(api.library.getSnapshot, {})
+  if (snapshot.folders.length === 0 && snapshot.decks.length === 0) {
+    await convex.mutation(api.seed.seedSampleIfMissing, {})
+    return convex.query(api.library.getSnapshot, {})
+  }
+  return snapshot
 })
 
 export const createFolderFn = createServerFn({ method: 'POST' })

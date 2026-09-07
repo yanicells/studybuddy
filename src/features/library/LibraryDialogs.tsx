@@ -100,13 +100,13 @@ function LibraryDialogContent({
     return blocked
   }, [dialog, library.folders])
 
-  async function commit(work: () => Promise<unknown>, success?: () => void) {
+  async function commit<Result>(work: () => Promise<Result>, after?: (result: Result) => void) {
     setPending(true)
     setError(null)
     try {
-      await work()
+      const result = await work()
       await router.invalidate()
-      success?.()
+      after?.(result)
       onClose()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The change could not be saved.')
@@ -118,25 +118,31 @@ function LibraryDialogContent({
   async function submitName(event: FormEvent) {
     event.preventDefault()
     if (dialog?.kind !== 'name') return
-    await commit(async () => {
-      if (dialog.entity === 'folder') {
+    await commit(
+      async () => {
+        if (dialog.entity === 'folder') {
+          if (dialog.mode === 'create') {
+            const result = await createFolderFn({
+              data: { id: null, parentId: dialog.parentId, name },
+            })
+            return { kind: 'folder' as const, id: result.id }
+          }
+          await renameFolderFn({ data: { id: dialog.id, parentId: null, name } })
+          return null
+        }
         if (dialog.mode === 'create') {
-          const result = await createFolderFn({
+          const result = await createDeckFn({
             data: { id: null, parentId: dialog.parentId, name },
           })
-          onSelect({ kind: 'folder', id: result.id })
-        } else {
-          await renameFolderFn({ data: { id: dialog.id, parentId: null, name } })
+          return { kind: 'deck' as const, id: result.id }
         }
-      } else if (dialog.mode === 'create') {
-        const result = await createDeckFn({
-          data: { id: null, parentId: dialog.parentId, name },
-        })
-        onSelect({ kind: 'deck', id: result.id })
-      } else {
         await renameDeckFn({ data: { id: dialog.id, parentId: null, name } })
-      }
-    })
+        return null
+      },
+      (created) => {
+        if (created) onSelect(created)
+      },
+    )
   }
 
   async function submitCard(event: FormEvent) {
@@ -157,32 +163,40 @@ function LibraryDialogContent({
   async function submitImport(event: FormEvent) {
     event.preventDefault()
     if (dialog?.kind !== 'import') return
-    await commit(async () => {
-      const result = await importCardsFn({
-        data: {
-          deckId: dialog.deckId,
-          folderId: dialog.folderId,
-          text: importText,
-        },
-      })
-      onSelect({ kind: 'deck', id: result.deckId })
-      onNotice(result.notice ?? `Imported ${result.count} ${result.count === 1 ? 'card' : 'cards'}.`)
-    })
+    await commit(
+      async () => {
+        const result = await importCardsFn({
+          data: {
+            deckId: dialog.deckId,
+            folderId: dialog.folderId,
+            text: importText,
+          },
+        })
+        return result
+      },
+      (result) => {
+        onSelect({ kind: 'deck', id: result.deckId })
+        onNotice(result.notice ?? `Imported ${result.count} ${result.count === 1 ? 'card' : 'cards'}.`)
+      },
+    )
   }
 
   async function confirmDelete() {
     if (dialog?.kind !== 'confirm') return
-    await commit(async () => {
-      if (dialog.entity === 'folder') await deleteFolderFn({ data: { id: dialog.id } })
-      if (dialog.entity === 'deck') await deleteDeckFn({ data: { id: dialog.id } })
-      if (dialog.entity === 'card') await deleteCardFn({ data: { id: dialog.id } })
-      if (
-        (dialog.entity === 'folder' && selection?.kind === 'folder' && selection.id === dialog.id) ||
-        (dialog.entity === 'deck' && selection?.kind === 'deck' && selection.id === dialog.id)
-      ) {
-        onSelect(null)
-      }
-    })
+    await commit(
+      async () => {
+        if (dialog.entity === 'folder') await deleteFolderFn({ data: { id: dialog.id } })
+        if (dialog.entity === 'deck') await deleteDeckFn({ data: { id: dialog.id } })
+        if (dialog.entity === 'card') await deleteCardFn({ data: { id: dialog.id } })
+        return (
+          (dialog.entity === 'folder' && selection?.kind === 'folder' && selection.id === dialog.id) ||
+          (dialog.entity === 'deck' && selection?.kind === 'deck' && selection.id === dialog.id)
+        )
+      },
+      (shouldClear) => {
+        if (shouldClear) onSelect(null)
+      },
+    )
   }
 
   async function moveTo(parentId: string | null) {
@@ -215,6 +229,7 @@ function LibraryDialogContent({
               maxLength={120}
               required
               disabled={pending}
+              autoFocus
             />
           </label>
           <DialogError error={error} />
@@ -383,7 +398,7 @@ function DialogActions({
 }: Readonly<{ pending: boolean; onClose: () => void; action: string; icon?: React.ReactNode }>) {
   return (
     <div className="dialog-actions">
-      <Button onClick={onClose}>Cancel</Button>
+      <Button onClick={onClose} disabled={pending}>Cancel</Button>
       <Button type="submit" variant="primary" disabled={pending} icon={icon}>
         {pending ? `${action}…` : action}
       </Button>
