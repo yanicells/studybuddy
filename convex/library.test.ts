@@ -124,6 +124,63 @@ describe('library repository', () => {
     expect(await t.query(api.library.listCards, { deckId: deckId(deck.id) })).toEqual([])
   })
 
+  it('reorders sibling folders and decks', async () => {
+    const t = testConvex()
+    const first = await t.mutation(api.library.createFolder, { parentId: null, name: 'A' })
+    const second = await t.mutation(api.library.createFolder, { parentId: null, name: 'B' })
+    const third = await t.mutation(api.library.createFolder, { parentId: null, name: 'C' })
+
+    await t.mutation(api.library.reorderFolders, {
+      parentId: null,
+      orderedIds: [folderId(third.id), folderId(first.id), folderId(second.id)],
+    })
+    expect(
+      (await t.query(api.library.getSnapshot, {})).folders.map((folder) => folder.id),
+    ).toEqual([third.id, first.id, second.id])
+
+    await expect(
+      t.mutation(api.library.reorderFolders, {
+        parentId: null,
+        orderedIds: [folderId(first.id), folderId(second.id)],
+      }),
+    ).rejects.toThrow(/changed/)
+
+    const deckA = await t.mutation(api.library.createDeck, { folderId: null, name: 'Deck A' })
+    const deckB = await t.mutation(api.library.createDeck, { folderId: null, name: 'Deck B' })
+    await t.mutation(api.library.reorderDecks, {
+      folderId: null,
+      orderedIds: [deckId(deckB.id), deckId(deckA.id)],
+    })
+    expect(
+      (await t.query(api.library.getSnapshot, {})).decks.map((deck) => deck.id),
+    ).toEqual([deckB.id, deckA.id])
+  })
+
+  it('moves decks and folders to the end of the new parent', async () => {
+    const t = testConvex()
+    const target = await t.mutation(api.library.createFolder, { parentId: null, name: 'Target' })
+    const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Movable' })
+    await t.mutation(api.library.moveDeck, {
+      id: deckId(deck.id),
+      folderId: folderId(target.id),
+    })
+    const snapshot = await t.query(api.library.getSnapshot, {})
+    expect(snapshot.decks.find((item) => item.id === deck.id)).toMatchObject({
+      folderId: target.id,
+      position: 0,
+    })
+
+    const root = await t.mutation(api.library.createFolder, { parentId: null, name: 'Root' })
+    await t.mutation(api.library.moveFolder, {
+      id: folderId(target.id),
+      parentId: folderId(root.id),
+    })
+    const moved = (await t.query(api.library.getSnapshot, {})).folders.find(
+      (folder) => folder.id === target.id,
+    )
+    expect(moved).toMatchObject({ parentId: root.id, position: 0 })
+  })
+
   it('seeds the nested sample library only once', async () => {
     const t = testConvex()
     expect(await t.mutation(api.seed.seedSampleIfMissing, {})).toBe(true)

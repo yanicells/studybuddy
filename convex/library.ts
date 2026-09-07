@@ -80,7 +80,31 @@ export const moveFolder = mutation({
         throw new Error('A folder cannot be moved into its own child')
       }
     }
-    await ctx.db.patch(args.id, { parentId: args.parentId })
+    await ctx.db.patch(args.id, {
+      parentId: args.parentId,
+      position: await nextPosition(ctx, 'folders', args.parentId),
+    })
+  },
+})
+
+export const reorderFolders = mutation({
+  args: {
+    parentId: v.union(v.id('folders'), v.null()),
+    orderedIds: v.array(v.id('folders')),
+  },
+  handler: async (ctx, args) => {
+    const siblings = await ctx.db
+      .query('folders')
+      .withIndex('by_parent', (q) => q.eq('parentId', args.parentId))
+      .collect()
+    requireSameIds(
+      siblings.map((row) => row._id),
+      args.orderedIds,
+      'Folders changed. Reload and try again.',
+    )
+    for (const [index, id] of args.orderedIds.entries()) {
+      await ctx.db.patch(id, { position: index })
+    }
   },
 })
 
@@ -118,7 +142,31 @@ export const moveDeck = mutation({
   handler: async (ctx, args) => {
     await requireDoc(ctx, args.id, 'Deck not found')
     if (args.folderId !== null) await requireDoc(ctx, args.folderId, 'Folder not found')
-    await ctx.db.patch(args.id, { folderId: args.folderId })
+    await ctx.db.patch(args.id, {
+      folderId: args.folderId,
+      position: await nextPosition(ctx, 'decks', args.folderId),
+    })
+  },
+})
+
+export const reorderDecks = mutation({
+  args: {
+    folderId: v.union(v.id('folders'), v.null()),
+    orderedIds: v.array(v.id('decks')),
+  },
+  handler: async (ctx, args) => {
+    const siblings = await ctx.db
+      .query('decks')
+      .withIndex('by_folder', (q) => q.eq('folderId', args.folderId))
+      .collect()
+    requireSameIds(
+      siblings.map((row) => row._id),
+      args.orderedIds,
+      'Decks changed. Reload and try again.',
+    )
+    for (const [index, id] of args.orderedIds.entries()) {
+      await ctx.db.patch(id, { position: index })
+    }
   },
 })
 
@@ -393,6 +441,19 @@ async function requireDoc<Table extends 'folders' | 'decks' | 'cards'>(
   const row = await ctx.db.get(id)
   if (!row) throw new Error(message)
   return row
+}
+
+function requireSameIds(
+  current: string[],
+  next: string[],
+  message: string,
+): void {
+  if (current.length !== next.length) throw new Error(message)
+  const seen = new Set(next)
+  if (seen.size !== next.length) throw new Error(message)
+  for (const id of current) {
+    if (!seen.has(id)) throw new Error(message)
+  }
 }
 
 function mapFolder(row: Doc<'folders'>): Folder {
