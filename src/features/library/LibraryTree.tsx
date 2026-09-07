@@ -1,7 +1,8 @@
 import { ChevronRight, Ellipsis, Folder, Layers3, Move, Pencil, Trash2 } from 'lucide-react'
-import { useRef, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 
 import { Button } from '../../components/Button'
+import { OverflowMenu } from '../../components/OverflowMenu'
 import type { Deck, Folder as FolderType, LibrarySnapshot } from '../../core/types'
 import {
   deleteDeckDialog,
@@ -197,19 +198,15 @@ function RowMenu({
   onMove: () => void
   onDelete: () => void
 }>) {
-  const menu = useRef<HTMLDetailsElement>(null)
-  function run(action: () => void) {
-    menu.current?.removeAttribute('open')
-    action()
-  }
   return (
-    <details ref={menu} className="tree-row__menu actions-menu" name="sidebar-row-menu">
-      <summary aria-label={`More actions for ${name}`}><Ellipsis size={14} /></summary>
-      <div>
-        <Button variant="ghost" size="small" icon={<Pencil size={16} />} onClick={() => run(onRename)}>Rename</Button>
-        <Button variant="ghost" size="small" icon={<Move size={16} />} onClick={() => run(onMove)}>Move</Button>
-        <Button variant="ghost" size="small" icon={<Trash2 size={16} />} onClick={() => run(onDelete)}>Delete</Button>
-      </div>
-    </details>
+    <OverflowMenu
+      label={`More actions for ${name}`}
+      icon={<Ellipsis size={14} />}
+      className="tree-row__menu actions-menu"
+    >
+      <Button variant="ghost" size="small" icon={<Pencil size={16} />} onClick={onRename}>Rename</Button>
+      <Button variant="ghost" size="small" icon={<Move size={16} />} onClick={onMove}>Move</Button>
+      <Button variant="ghost" size="small" icon={<Trash2 size={16} />} onClick={onDelete}>Delete</Button>
+    </OverflowMenu>
   )
 }

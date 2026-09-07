@@ -77,6 +77,18 @@ describe('LibraryTree', () => {
       description: 'Every card and review in this deck will be removed.',
     })
   })
+
+  it('dismisses an open row menu on outside click', async () => {
+    const user = userEvent.setup()
+    renderTree()
+
+    const menu = screen.getByLabelText('More actions for Course').closest('details')
+    await user.click(screen.getByLabelText('More actions for Course'))
+    expect(menu).toHaveAttribute('open')
+
+    await user.click(screen.getByRole('button', { name: 'Course' }))
+    expect(menu).not.toHaveAttribute('open')
+  })
 })
 
 function renderTree({
