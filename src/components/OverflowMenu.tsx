@@ -1,22 +1,29 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react'
 
 const MENU_OPEN_EVENT = 'studybuddy:menu-open'
+
+interface SummaryDrag {
+  onDragStart: (event: DragEvent<HTMLElement>) => void
+  onDragEnd: () => void
+}
 
 interface OverflowMenuProps {
   label: string
   icon: ReactNode
   className?: string
   children: ReactNode
+  summaryDrag?: SummaryDrag
 }
 
 /**
  * Controlled `<details>` menu that keeps existing `.actions-menu` styles
  * while dismissing on outside pointer-down, Escape, or item selection.
  */
-export function OverflowMenu({ label, icon, className = '', children }: OverflowMenuProps) {
+export function OverflowMenu({ label, icon, className = '', children, summaryDrag }: OverflowMenuProps) {
   const [open, setOpen] = useState(false)
   const menuId = useId()
   const menuRef = useRef<HTMLDetailsElement>(null)
+  const lastDragEnd = useRef(0)
 
   useEffect(() => {
     function closeOthers(event: Event) {
@@ -59,8 +66,17 @@ export function OverflowMenu({ label, icon, className = '', children }: Overflow
       <summary
         aria-label={label}
         aria-expanded={open}
+        draggable={Boolean(summaryDrag)}
+        onDragStart={summaryDrag?.onDragStart}
+        onDragEnd={(event) => {
+          event.stopPropagation()
+          lastDragEnd.current = Date.now()
+          summaryDrag?.onDragEnd()
+        }}
         onClick={(event) => {
           event.preventDefault()
+          // A drag ending on the handle also fires click; ignore it.
+          if (Date.now() - lastDragEnd.current < 300) return
           setOpen((current) => !current)
         }}
       >

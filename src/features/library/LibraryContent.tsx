@@ -1,21 +1,39 @@
-import type { ReactNode } from 'react'
-import { ArrowRight, Folder, FolderPlus, Layers3, Pencil, Trash2 } from 'lucide-react'
+import type { DragEvent, ReactNode } from 'react'
+import { useState } from 'react'
+import { ArrowRight, ChevronDown, ChevronUp, Folder, FolderPlus, GripVertical, Layers3, Pencil, Trash2 } from 'lucide-react'
 
 import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
+import { OverflowMenu } from '../../components/OverflowMenu'
 import { StackedProgress } from '../../components/ProgressBars'
 import { phrasesForSide } from '../../core/quiz'
 import { descendantDeckIds, rollupStats } from '../../core/stats'
 import { EMPTY_STATS, type Card, type DeckStats, type LibrarySnapshot, type Status } from '../../core/types'
 import { createNameDialog, type LibraryDialog, type Selection, type StatusFilter } from './library.types'
+import {
+  dropSibling,
+  isDropAfter,
+  moveSibling,
+  readReorderDrag,
+  startReorderDrag,
+  type ReorderKind,
+  type ReorderRequest,
+} from './reorder'
 
 interface LibraryContentProps {
   library: LibrarySnapshot
   selection: Selection
   filter: StatusFilter
+  reordering: boolean
   onFilter: (filter: StatusFilter) => void
   onSelect: (selection: Selection) => void
   onDialog: (dialog: LibraryDialog) => void
+  onReorder: (request: ReorderRequest) => void
+}
+
+interface TileDragState {
+  draggingId: string | null
+  dropTarget: { id: string; after: boolean } | null
 }
 
 export function LibraryContent(props: LibraryContentProps) {
@@ -24,9 +42,10 @@ export function LibraryContent(props: LibraryContentProps) {
   return <DeckContent {...props} />
 }
 
-function LibraryHome({ library, onSelect }: LibraryContentProps) {
+function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryContentProps) {
   const folders = library.folders.filter((folder) => folder.parentId === null)
   const decks = library.decks.filter((deck) => deck.folderId === null)
+  const dragProps = { reordering, ...useTileDrag(), onReorder }
   const dueDecks = library.decks
     .filter((deck) => (library.statsByDeck[deck.id]?.due ?? 0) > 0)
     .sort((left, right) => (library.statsByDeck[right.id]?.due ?? 0) - (library.statsByDeck[left.id]?.due ?? 0))
@@ -67,11 +86,16 @@ function LibraryHome({ library, onSelect }: LibraryContentProps) {
             const nested = library.folders.filter((child) => child.parentId === folder.id).length
             const deckCount = deckIds.length
             return (
-              <button
-                type="button"
-                className="folder-tile"
+              <SortableTile
                 key={folder.id}
-                onClick={() => onSelect({ kind: 'folder', id: folder.id })}
+                tileClass="folder-tile"
+                name={folder.name}
+                kind="folder"
+                parentId={null}
+                itemId={folder.id}
+                siblingIds={folders.map((sibling) => sibling.id)}
+                onOpen={() => onSelect({ kind: 'folder', id: folder.id })}
+                {...dragProps}
               >
                 <span className="tile-icon"><Folder size={18} /></span>
                 <span className="deck-tile__copy">
@@ -83,7 +107,7 @@ function LibraryHome({ library, onSelect }: LibraryContentProps) {
                   <StackedProgress stats={stats} />
                 </span>
                 <ArrowRight size={16} />
-              </button>
+              </SortableTile>
             )
           })}
           {decks.map((deck) => (
@@ -91,7 +115,12 @@ function LibraryHome({ library, onSelect }: LibraryContentProps) {
               key={deck.id}
               name={deck.name}
               stats={library.statsByDeck[deck.id] ?? EMPTY_STATS}
-              onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+              kind="deck"
+              parentId={null}
+              itemId={deck.id}
+              siblingIds={decks.map((sibling) => sibling.id)}
+              onOpen={() => onSelect({ kind: 'deck', id: deck.id })}
+              {...dragProps}
             />
           ))}
         </div>
@@ -125,7 +154,8 @@ function LibraryHome({ library, onSelect }: LibraryContentProps) {
   )
 }
 
-function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
+function FolderContent({ library, selection, onSelect, reordering, onReorder }: LibraryContentProps) {
+  const dragProps = { reordering, ...useTileDrag(), onReorder }
   if (selection?.kind !== 'folder') return null
   const folders = library.folders.filter((folder) => folder.parentId === selection.id)
   const decks = library.decks.filter((deck) => deck.folderId === selection.id)
@@ -139,11 +169,16 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
       {folders.map((folder) => {
         const stats = rollupStats(library, descendantDeckIds(library, folder.id))
         return (
-          <button
-            type="button"
-            className="folder-tile"
+          <SortableTile
             key={folder.id}
-            onClick={() => onSelect({ kind: 'folder', id: folder.id })}
+            tileClass="folder-tile"
+            name={folder.name}
+            kind="folder"
+            parentId={selection.id}
+            itemId={folder.id}
+            siblingIds={folders.map((sibling) => sibling.id)}
+            onOpen={() => onSelect({ kind: 'folder', id: folder.id })}
+            {...dragProps}
           >
             <span className="tile-icon"><Folder size={18} /></span>
             <span className="deck-tile__copy">
@@ -152,7 +187,7 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
               <StackedProgress stats={stats} />
             </span>
             <ArrowRight size={16} />
-          </button>
+          </SortableTile>
         )
       })}
       {decks.map((deck) => (
@@ -160,7 +195,12 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
           key={deck.id}
           name={deck.name}
           stats={library.statsByDeck[deck.id] ?? EMPTY_STATS}
-          onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+          kind="deck"
+          parentId={selection.id}
+          itemId={deck.id}
+          siblingIds={decks.map((sibling) => sibling.id)}
+          onOpen={() => onSelect({ kind: 'deck', id: deck.id })}
+          {...dragProps}
         />
       ))}
     </section>
@@ -170,11 +210,43 @@ function FolderContent({ library, selection, onSelect }: LibraryContentProps) {
 function DeckTile({
   name,
   stats,
-  onClick,
-}: Readonly<{ name: string; stats: DeckStats; onClick: () => void }>) {
+  kind,
+  parentId,
+  itemId,
+  siblingIds,
+  reordering,
+  drag,
+  setDrag,
+  onOpen,
+  onReorder,
+}: Readonly<{
+  name: string
+  stats: DeckStats
+  kind: ReorderKind
+  parentId: string | null
+  itemId: string
+  siblingIds: string[]
+  reordering: boolean
+  drag: TileDragState
+  setDrag: TileSetDrag
+  onOpen: () => void
+  onReorder: (request: ReorderRequest) => void
+}>) {
   const total = totalCards(stats)
   return (
-    <button type="button" className="deck-tile" onClick={onClick}>
+    <SortableTile
+      tileClass="deck-tile"
+      name={name}
+      kind={kind}
+      parentId={parentId}
+      itemId={itemId}
+      siblingIds={siblingIds}
+      reordering={reordering}
+      drag={drag}
+      setDrag={setDrag}
+      onOpen={onOpen}
+      onReorder={onReorder}
+    >
       <span className="tile-icon"><Layers3 size={18} /></span>
       <span className="deck-tile__copy">
         <strong>{name}</strong>
@@ -182,7 +254,126 @@ function DeckTile({
         <StackedProgress stats={stats} />
       </span>
       <ArrowRight size={16} />
-    </button>
+    </SortableTile>
+  )
+}
+
+interface TileSortableProps {
+  reordering: boolean
+  drag: TileDragState
+  setDrag: TileSetDrag
+  onReorder: (request: ReorderRequest) => void
+}
+
+interface TileSetDrag {
+  setDraggingId: (id: string | null) => void
+  setDropTarget: (target: TileDragState['dropTarget']) => void
+}
+
+function useTileDrag(): { drag: TileDragState; setDrag: TileSetDrag } {
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<TileDragState['dropTarget']>(null)
+  return { drag: { draggingId, dropTarget }, setDrag: { setDraggingId, setDropTarget } }
+}
+
+function SortableTile({
+  tileClass,
+  name,
+  kind,
+  parentId,
+  itemId,
+  siblingIds,
+  reordering,
+  drag,
+  setDrag,
+  onOpen,
+  onReorder,
+  children,
+}: Readonly<{
+  tileClass: 'folder-tile' | 'deck-tile'
+  name: string
+  kind: ReorderKind
+  parentId: string | null
+  itemId: string
+  siblingIds: string[]
+  onOpen: () => void
+  children: ReactNode
+} & TileSortableProps>) {
+  const index = siblingIds.indexOf(itemId)
+  const canMoveUp = index > 0
+  const canMoveDown = index >= 0 && index < siblingIds.length - 1
+  function move(delta: -1 | 1) {
+    const orderedIds = moveSibling(siblingIds, itemId, delta)
+    if (orderedIds) onReorder({ kind, parentId, orderedIds })
+  }
+  let dropClass = ''
+  if (drag.draggingId === itemId) dropClass = ' is-dragging'
+  else if (drag.dropTarget?.id === itemId) {
+    dropClass = drag.dropTarget.after ? ' is-drop-after' : ' is-drop-before'
+  }
+  function onDragOver(event: DragEvent) {
+    const draggedId = readReorderDrag(event, kind)
+    if (!draggedId || draggedId === itemId || !siblingIds.includes(draggedId)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setDrag.setDropTarget({ id: itemId, after: isDropAfter(event, event.currentTarget as HTMLElement) })
+  }
+  function onDrop(event: DragEvent) {
+    event.preventDefault()
+    const after = isDropAfter(event, event.currentTarget as HTMLElement)
+    const draggedId = readReorderDrag(event, kind)
+    setDrag.setDropTarget(null)
+    setDrag.setDraggingId(null)
+    if (!draggedId) return
+    const orderedIds = dropSibling(siblingIds, draggedId, itemId, after)
+    if (orderedIds) onReorder({ kind, parentId, orderedIds })
+  }
+  return (
+    <div className="tile-wrap" role="group" aria-label={name}>
+      <button
+        type="button"
+        className={`${tileClass}${dropClass}`}
+        onClick={onOpen}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      >
+        {children}
+      </button>
+      <OverflowMenu
+        label="Change order"
+        icon={<GripVertical size={14} />}
+        className="tile-reorder actions-menu"
+        summaryDrag={{
+          onDragStart: (event) => {
+            startReorderDrag(event, { kind, id: itemId })
+            setDrag.setDraggingId(itemId)
+          },
+          onDragEnd: () => {
+            setDrag.setDraggingId(null)
+            setDrag.setDropTarget(null)
+          },
+        }}
+      >
+        <Button
+          variant="ghost"
+          size="small"
+          icon={<ChevronUp size={16} />}
+          disabled={reordering || !canMoveUp}
+          onClick={() => move(-1)}
+        >
+          Move up
+        </Button>
+        <Button
+          variant="ghost"
+          size="small"
+          icon={<ChevronDown size={16} />}
+          disabled={reordering || !canMoveDown}
+          onClick={() => move(1)}
+        >
+          Move down
+        </Button>
+      </OverflowMenu>
+    </div>
   )
 }
 
