@@ -115,7 +115,12 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       }
       await router.invalidate()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'The new order could not be saved.')
+      const message = error instanceof Error ? error.message : ''
+      setNotice(
+        /changed|reload/i.test(message) && message.length > 0
+          ? message
+          : 'The new order could not be saved. Run `npx convex deploy` so the reorder functions exist, reload, and try again.',
+      )
     } finally {
       setReordering(false)
     }
