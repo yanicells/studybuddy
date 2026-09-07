@@ -19,7 +19,7 @@ import type { StudyMode } from '../../core/queue'
 import { folderPath, highestDueDeck } from '../../core/stats'
 import type { LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
-import { startStudyFn } from './library.functions'
+import { reorderDecksFn, reorderFoldersFn, startStudyFn } from './library.functions'
 import { LibraryContent, CreatePlaceButtons } from './LibraryContent'
 import { LibraryDialogs } from './LibraryDialogs'
 import { LibraryTree } from './LibraryTree'
@@ -34,6 +34,7 @@ import {
   type Selection,
   type StatusFilter,
 } from './library.types'
+import type { ReorderRequest } from './reorder'
 
 interface StudyPayload {
   deckName: string
@@ -50,6 +51,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [startingStudy, setStartingStudy] = useState(false)
+  const [reordering, setReordering] = useState(false)
   const [study, setStudy] = useState<StudyPayload | null>(null)
 
   const selectedFolderCandidate =
@@ -98,6 +100,26 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
 
   const closeDialog = useCallback(() => setDialog(null), [])
   const createParentId = selectedFolder?.id ?? null
+
+  const handleReorder = useCallback(async (request: ReorderRequest) => {
+    setReordering(true)
+    try {
+      if (request.kind === 'folder') {
+        await reorderFoldersFn({
+          data: { parentId: request.parentId, orderedIds: request.orderedIds },
+        })
+      } else {
+        await reorderDecksFn({
+          data: { parentId: request.parentId, orderedIds: request.orderedIds },
+        })
+      }
+      await router.invalidate()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'The new order could not be saved.')
+    } finally {
+      setReordering(false)
+    }
+  }, [router])
 
   async function beginStudy(deckId: string, mode: StudyMode) {
     const target = library.decks.find((deck) => deck.id === deckId)
@@ -156,6 +178,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           library={library}
           selection={activeSelection}
           expanded={expanded}
+          reordering={reordering}
           onToggleFolder={(id) =>
             setExpanded((current) => {
               const next = new Set(current)
@@ -166,6 +189,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           }
           onSelect={select}
           onDialog={setDialog}
+          onReorder={(request) => void handleReorder(request)}
         />
       </aside>
 
@@ -297,9 +321,11 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
             library={library}
             selection={activeSelection}
             filter={filter}
+            reordering={reordering}
             onFilter={setFilter}
             onSelect={select}
             onDialog={setDialog}
+            onReorder={(request) => void handleReorder(request)}
           />
         </div>
         </div>

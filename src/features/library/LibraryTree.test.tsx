@@ -89,25 +89,56 @@ describe('LibraryTree', () => {
     await user.click(screen.getByRole('button', { name: 'Course' }))
     expect(menu).not.toHaveAttribute('open')
   })
+
+  it('moves a folder down within its siblings', async () => {
+    const user = userEvent.setup()
+    const onReorder = vi.fn()
+    renderTree({
+      onReorder,
+      library: {
+        ...library,
+        folders: [
+          { id: '1', parentId: null, name: 'Course', position: 0 },
+          { id: '2', parentId: null, name: 'Extra', position: 1 },
+        ],
+      },
+    })
+
+    const menu = screen.getByLabelText('More actions for Course').closest('details')
+    await user.click(screen.getByLabelText('More actions for Course'))
+    await user.click(within(menu as HTMLElement).getByRole('button', { name: 'Move down' }))
+
+    expect(onReorder).toHaveBeenCalledWith({
+      kind: 'folder',
+      parentId: null,
+      orderedIds: ['2', '1'],
+    })
+  })
 })
 
 function renderTree({
   onToggleFolder = vi.fn(),
   onSelect = vi.fn(),
   onDialog = vi.fn(),
+  onReorder = vi.fn(),
+  library: nextLibrary = library,
 }: {
   onToggleFolder?: (id: string) => void
   onSelect?: (selection: { kind: 'folder' | 'deck'; id: string } | null) => void
   onDialog?: (dialog: LibraryDialog) => void
+  onReorder?: (request: { kind: 'folder' | 'deck'; parentId: string | null; orderedIds: string[] }) => void
+  library?: LibrarySnapshot
 } = {}) {
   render(
     <LibraryTree
-      library={library}
+      library={nextLibrary}
       selection={{ kind: 'folder', id: '1' }}
       expanded={new Set(['1'])}
+      reordering={false}
       onToggleFolder={onToggleFolder}
       onSelect={onSelect}
       onDialog={onDialog}
+      onReorder={onReorder}
     />,
   )
 }
