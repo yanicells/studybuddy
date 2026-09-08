@@ -116,7 +116,7 @@ describe('library repository', () => {
     const selectedDecks = [deckId(deck.id), deckId(secondDeck.id)]
     const due = await t.query(api.library.startStudy, { deckIds: selectedDecks, mode: 'due' })
     const all = await t.query(api.library.startStudy, { deckIds: selectedDecks, mode: 'all' })
-    const fallback = await t.query(api.library.startStudy, { deckIds: [deckId(deck.id)] })
+    const fallback = await t.query(api.library.startStudy, { deckId: deckId(deck.id) })
     expect(due.dueCards.map((card) => card.id)).toEqual([dueCard.id, secondDueCard.id])
     expect(all.dueCards.map((card) => card.id)).toEqual([
       laterCard.id,
