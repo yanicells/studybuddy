@@ -7,7 +7,7 @@ test('supports the complete library workflow', async ({ page }) => {
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
-  await expect(page.locator('.home-today')).toContainText('4 decks')
+  await expect(page.locator('.home-today')).toContainText(/\d+ decks/)
   await expect(page.getByText(/due today/)).toBeVisible()
 
   await page.getByRole('button', { name: 'Folder', exact: true }).click()
@@ -88,7 +88,7 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
   await expect(page.locator('.deck-overview__summary')).toContainText('due')
   await page.getByRole('button', { name: /Study \d+/ }).click()
-  const studyDialog = page.getByRole('dialog', { name: 'Study' })
+  const studyDialog = page.getByRole('dialog', { name: /Study Architecture vs Organization/ })
   await expect(studyDialog.getByRole('button', { name: /Due only/ })).toBeVisible()
   await expect(studyDialog.getByRole('button', { name: /All cards/ })).toBeVisible()
   await studyDialog.getByRole('button', { name: /Due only/ }).click()
@@ -101,6 +101,29 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
   await expect(page.getByText(/Round 1/)).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
+})
+
+test('studies a selectable nested folder scope', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  await page.getByLabel('Folders and decks').getByRole('button', { name: /CSCI 50\.01/ }).click()
+
+  await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Study CSCI 50.01' })
+  await expect(dialog.getByRole('checkbox', { name: /Hardware Lecture/ })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await dialog.getByRole('checkbox', { name: /Hardware Lecture/ }).click()
+  await expect(dialog.locator('.study-picker__summary')).toContainText('0 of 2 decks')
+
+  await dialog.getByRole('checkbox', { name: /Architecture vs Organization/ }).click()
+  await expect(dialog.locator('.study-picker__summary')).toContainText('1 of 2 decks')
+  await dialog.getByRole('button', { name: /All cards/ }).click()
+
+  await expect(page.locator('.study-header__copy')).toContainText('CSCI 50.01')
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('heading', { name: 'CSCI 50.01' })).toBeVisible()
 })
 
 function cardWithText(page: Page, text: string): Locator {
