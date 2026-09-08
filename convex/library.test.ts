@@ -86,9 +86,13 @@ describe('library repository', () => {
     ])
   })
 
-  it('starts study with due cards or the whole deck', async () => {
+  it('starts study with due cards or all cards across selected decks', async () => {
     const t = testConvex()
     const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Mixed' })
+    const secondDeck = await t.mutation(api.library.createDeck, {
+      folderId: null,
+      name: 'More',
+    })
     const dueCard = await t.mutation(api.library.createCard, {
       deckId: deckId(deck.id),
       card: { front: 'Due', back: 'Now', highlights: [] },
@@ -104,13 +108,25 @@ describe('library repository', () => {
         intervalDays: 10,
       })
     })
+    const secondDueCard = await t.mutation(api.library.createCard, {
+      deckId: deckId(secondDeck.id),
+      card: { front: 'Second deck', back: 'Included', highlights: [] },
+    })
 
-    const due = await t.query(api.library.startStudy, { deckId: deckId(deck.id), mode: 'due' })
-    const all = await t.query(api.library.startStudy, { deckId: deckId(deck.id), mode: 'all' })
-    const fallback = await t.query(api.library.startStudy, { deckId: deckId(deck.id) })
-    expect(due.dueCards.map((card) => card.id)).toEqual([dueCard.id])
-    expect(all.dueCards.map((card) => card.id)).toEqual([laterCard.id, dueCard.id])
+    const selectedDecks = [deckId(deck.id), deckId(secondDeck.id)]
+    const due = await t.query(api.library.startStudy, { deckIds: selectedDecks, mode: 'due' })
+    const all = await t.query(api.library.startStudy, { deckIds: selectedDecks, mode: 'all' })
+    const fallback = await t.query(api.library.startStudy, { deckIds: [deckId(deck.id)] })
+    expect(due.dueCards.map((card) => card.id)).toEqual([dueCard.id, secondDueCard.id])
+    expect(all.dueCards.map((card) => card.id)).toEqual([
+      laterCard.id,
+      dueCard.id,
+      secondDueCard.id,
+    ])
     expect(fallback.dueCards.map((card) => card.id)).toEqual([dueCard.id])
+    await expect(
+      t.query(api.library.startStudy, { deckIds: [], mode: 'due' }),
+    ).rejects.toThrow(/at least one deck/)
   })
 
   it('cascades deck deletion to cards', async () => {

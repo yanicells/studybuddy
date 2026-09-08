@@ -126,12 +126,12 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     }
   }, [router])
 
-  async function beginStudy(deckId: string, mode: StudyMode) {
-    const target = library.decks.find((deck) => deck.id === deckId)
+  async function beginStudy(deckIds: string[], mode: StudyMode) {
+    const target = library.decks.find((deck) => deck.id === deckIds[0])
     if (!target) return
     setStartingStudy(true)
     try {
-      const payload = await startStudyFn({ data: { deckId: target.id, mode } })
+      const payload = await startStudyFn({ data: { deckIds, mode } })
       if (payload.dueCards.length === 0) {
         setNotice('This deck has no cards yet.')
         return
@@ -349,7 +349,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
         onClose={closeDialog}
         onSelect={select}
         onNotice={setNotice}
-        onStartStudy={(deckId, mode) => void beginStudy(deckId, mode)}
+        onStartStudy={(deckId, mode) => void beginStudy([deckId], mode)}
       />
     </main>
   )

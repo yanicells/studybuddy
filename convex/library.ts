@@ -47,11 +47,22 @@ export const dueCards = query({
 
 export const startStudy = query({
   args: {
-    deckId: v.id('decks'),
+    deckIds: v.array(v.id('decks')),
     mode: v.optional(v.union(v.literal('due'), v.literal('all'))),
   },
   handler: async (ctx, args) => {
-    const deckCards = await listCardRecords(ctx, args.deckId)
+    if (args.deckIds.length === 0) throw new Error('Choose at least one deck')
+    if (new Set(args.deckIds).size !== args.deckIds.length) {
+      throw new Error('Deck ids must be unique')
+    }
+    const deckCards = (
+      await Promise.all(
+        args.deckIds.map(async (deckId) => {
+          await requireDoc(ctx, deckId, 'Deck not found')
+          return listCardRecords(ctx, deckId)
+        }),
+      )
+    ).flat()
     return { dueCards: buildStudyQueue(deckCards, new Date(), args.mode ?? 'due'), deckCards }
   },
 })

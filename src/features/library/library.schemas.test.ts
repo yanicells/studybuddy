@@ -51,12 +51,14 @@ describe('library server boundaries', () => {
   })
 
   it('requires a study mode of due or all', () => {
-    expect(startStudySchema.parse({ deckId: '1', mode: 'all' })).toEqual({
-      deckId: '1',
+    expect(startStudySchema.parse({ deckIds: ['1', '2'], mode: 'all' })).toEqual({
+      deckIds: ['1', '2'],
       mode: 'all',
     })
-    expect(() => startStudySchema.parse({ deckId: '1' })).toThrow()
-    expect(() => startStudySchema.parse({ deckId: '1', mode: 'random' })).toThrow()
+    expect(() => startStudySchema.parse({ deckIds: [], mode: 'all' })).toThrow()
+    expect(() => startStudySchema.parse({ deckIds: ['1', '1'], mode: 'all' })).toThrow()
+    expect(() => startStudySchema.parse({ deckIds: ['1'] })).toThrow()
+    expect(() => startStudySchema.parse({ deckIds: ['1'], mode: 'random' })).toThrow()
   })
 
   it('accepts a full sibling order for reordering', () => {

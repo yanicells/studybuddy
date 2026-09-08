@@ -196,7 +196,7 @@ export const startStudyFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const { api, asId, getConvex } = await import('../../server/convex.server')
     return getConvex().query(api.library.startStudy, {
-      deckId: asId<'decks'>(data.deckId),
+      deckIds: data.deckIds.map((id) => asId<'decks'>(id)),
       mode: data.mode,
     })
   })
