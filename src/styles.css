@@ -1293,6 +1293,11 @@ summary {
   background: #f5f8fc;
 }
 
+.move-list button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .move-list span {
   display: flex;
   align-items: center;
@@ -1306,6 +1311,161 @@ summary {
   font-size: 0.75rem;
   font-weight: 500;
   white-space: nowrap;
+}
+
+.study-picker__summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin-bottom: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.study-picker__summary span:nth-child(2) {
+  flex: 1;
+}
+
+.study-picker__summary strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.study-tree {
+  max-height: min(330px, 42dvh);
+  overflow-y: auto;
+  margin-bottom: 0.9rem;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.study-tree__branch {
+  min-width: 0;
+}
+
+.study-tree__row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.study-tree__expander {
+  width: 28px;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.study-tree__expander:hover,
+.study-tree__option:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.study-tree__option {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 18px 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.45rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.study-tree__option:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.study-tree__option > svg {
+  color: var(--muted);
+}
+
+.study-tree__option > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.05rem;
+}
+
+.study-tree__option strong,
+.study-tree__option small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-tree__option strong {
+  font-size: 0.8rem;
+  font-weight: 550;
+}
+
+.study-tree__option small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.study-tree__children {
+  margin-left: 13px;
+  padding-left: 7px;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+}
+
+.study-tree__spacer {
+  display: block;
+}
+
+.study-checkbox {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #b9b9b3;
+  border-radius: 4px;
+  background: var(--surface);
+  color: #fff;
+}
+
+.study-checkbox.is-selected {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.study-picker__label {
+  margin: 0 0 0.4rem;
+  color: var(--muted);
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.study-mode-list {
+  max-height: none;
+}
+
+.study-picker__hint {
+  margin: -0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 .file-picker {
@@ -1773,6 +1933,23 @@ summary {
 
   .dialog-actions .button {
     min-height: 44px;
+  }
+
+  .study-picker__summary {
+    flex-wrap: wrap;
+    gap: 0.25rem 0.7rem;
+  }
+
+  .study-picker__summary span:nth-child(2) {
+    flex-basis: 55%;
+  }
+
+  .study-picker__summary .button {
+    min-height: 36px;
+  }
+
+  .study-tree {
+    max-height: 38dvh;
   }
 
   .study-header {

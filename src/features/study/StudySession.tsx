@@ -12,6 +12,7 @@ import { recordAnswerFn } from '../library/library.functions'
 
 interface StudySessionProps {
   deckName: string
+  backLabel?: string
   dueCards: Card[]
   deckCards: Card[]
   onLeave: () => void
@@ -25,6 +26,7 @@ interface Feedback {
 
 export function StudySession({
   deckName,
+  backLabel = 'Back to deck',
   dueCards,
   deckCards,
   onLeave,
@@ -135,7 +137,7 @@ export function StudySession({
                 {session.completed} {session.completed === 1 ? 'card is' : 'cards are'} done for now.
                 Misses will come back sooner; anything you confirmed can wait until its next due day.
               </p>
-              <Button variant="primary" onClick={onLeave}>Back to deck</Button>
+              <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
             </div>
           </section>
         ) : (

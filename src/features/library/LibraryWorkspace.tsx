@@ -16,7 +16,8 @@ import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
 import { OverflowMenu } from '../../components/OverflowMenu'
 import type { StudyMode } from '../../core/queue'
-import { folderPath, highestDueDeck } from '../../core/stats'
+import { folderPath, rollupStats } from '../../core/stats'
+import { studyDeckIds, studySourceName, type StudySource } from '../../core/studyScope'
 import type { LibrarySnapshot } from '../../core/types'
 import { StudySession } from '../study/StudySession'
 import { reorderDecksFn, reorderFoldersFn, startStudyFn } from './library.functions'
@@ -38,6 +39,7 @@ import type { ReorderRequest } from './reorder'
 
 interface StudyPayload {
   deckName: string
+  backLabel: string
   dueCards: Awaited<ReturnType<typeof startStudyFn>>['dueCards']
   deckCards: Awaited<ReturnType<typeof startStudyFn>>['deckCards']
 }
@@ -126,17 +128,20 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     }
   }, [router])
 
-  async function beginStudy(deckIds: string[], mode: StudyMode) {
-    const target = library.decks.find((deck) => deck.id === deckIds[0])
-    if (!target) return
+  async function beginStudy(deckIds: string[], source: StudySource, mode: StudyMode) {
+    if (deckIds.length === 0) return
     setStartingStudy(true)
     try {
       const payload = await startStudyFn({ data: { deckIds, mode } })
       if (payload.dueCards.length === 0) {
-        setNotice('This deck has no cards yet.')
+        setNotice('The selected decks have no cards yet.')
         return
       }
-      setStudy({ deckName: target.name, ...payload })
+      setStudy({
+        deckName: studySourceName(library, source),
+        backLabel: source.kind === 'deck' ? 'Back to deck' : 'Back to library',
+        ...payload,
+      })
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'The study session could not start.')
     } finally {
@@ -145,8 +150,13 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
   }
 
   const title = selectedFolder?.name ?? selectedDeck?.name ?? 'Library'
-  const studyDeck = selectedDeck ?? (activeSelection === null ? highestDueDeck(library) : undefined)
-  const due = studyDeck ? (library.statsByDeck[studyDeck.id]?.due ?? 0) : 0
+  const studySource: StudySource = selectedDeck
+    ? { kind: 'deck', id: selectedDeck.id }
+    : selectedFolder
+      ? { kind: 'folder', id: selectedFolder.id }
+      : { kind: 'library' }
+  const scopedDeckIds = studyDeckIds(library, studySource)
+  const due = rollupStats(library, scopedDeckIds).due
 
   if (study) {
     return (
@@ -214,13 +224,13 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
             <h1>{title}</h1>
           </div>
           <div className="header-actions">
-            {studyDeck ? (
+            {scopedDeckIds.length > 0 ? (
               <Button
                 variant="primary"
                 size="small"
                 icon={<Play size={16} fill="currentColor" />}
                 disabled={startingStudy}
-                onClick={() => setDialog(studyDialog(studyDeck.id))}
+                onClick={() => setDialog(studyDialog(studySource))}
               >
                 {startingStudy ? 'Starting…' : due > 0 ? `Study ${due}` : 'Study'}
               </Button>
@@ -349,7 +359,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
         onClose={closeDialog}
         onSelect={select}
         onNotice={setNotice}
-        onStartStudy={(deckId, mode) => void beginStudy([deckId], mode)}
+        onStartStudy={(deckIds, source, mode) => void beginStudy(deckIds, source, mode)}
       />
     </main>
   )

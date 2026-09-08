@@ -62,6 +62,25 @@ describe('LibraryContent reorder', () => {
     await user.click(screen.getByRole('button', { name: /Cells/ }))
     expect(onSelect).toHaveBeenCalledWith({ kind: 'deck', id: '10' })
   })
+
+  it('summarizes cards and decks inside nested folders', () => {
+    render(
+      <LibraryContent
+        library={nestedLibrary}
+        selection={null}
+        filter="all"
+        reordering={false}
+        onFilter={vi.fn()}
+        onSelect={vi.fn()}
+        onDialog={vi.fn()}
+        onReorder={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /Course/ })).toHaveTextContent(
+      '3 due · 7 cards · 2 decks · 1 folder',
+    )
+  })
 })
 
 const library: LibrarySnapshot = {
@@ -76,4 +95,21 @@ const library: LibrarySnapshot = {
     '20': { ...EMPTY_STATS },
   },
   study: { due: 0, reviewedToday: 0, streak: 0 },
+}
+
+const nestedLibrary: LibrarySnapshot = {
+  folders: [
+    { id: '1', parentId: null, name: 'Course', position: 0 },
+    { id: '2', parentId: '1', name: 'Unit', position: 0 },
+  ],
+  decks: [
+    { id: '10', folderId: '1', name: 'Cells', position: 0 },
+    { id: '20', folderId: '2', name: 'Genetics', position: 0 },
+  ],
+  cardsByDeck: {},
+  statsByDeck: {
+    '10': { ...EMPTY_STATS, new: 2, due: 2 },
+    '20': { ...EMPTY_STATS, new: 5, due: 1 },
+  },
+  study: { due: 3, reviewedToday: 0, streak: 0 },
 }

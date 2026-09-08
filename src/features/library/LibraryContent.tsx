@@ -101,7 +101,7 @@ function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryConten
                 <span className="deck-tile__copy">
                   <strong>{folder.name}</strong>
                   <small>
-                    {stats.due} due · {deckCount} {deckCount === 1 ? 'deck' : 'decks'}
+                    {stats.due} due · {totalCards(stats)} {totalCards(stats) === 1 ? 'card' : 'cards'} · {deckCount} {deckCount === 1 ? 'deck' : 'decks'}
                     {nested > 0 ? ` · ${nested} ${nested === 1 ? 'folder' : 'folders'}` : ''}
                   </small>
                   <StackedProgress stats={stats} />
@@ -167,7 +167,8 @@ function FolderContent({ library, selection, onSelect, reordering, onReorder }: 
   return (
     <section className="folder-grid" aria-label="Folder contents">
       {folders.map((folder) => {
-        const stats = rollupStats(library, descendantDeckIds(library, folder.id))
+        const deckIds = descendantDeckIds(library, folder.id)
+        const stats = rollupStats(library, deckIds)
         return (
           <SortableTile
             key={folder.id}
@@ -183,7 +184,9 @@ function FolderContent({ library, selection, onSelect, reordering, onReorder }: 
             <span className="tile-icon"><Folder size={18} /></span>
             <span className="deck-tile__copy">
               <strong>{folder.name}</strong>
-              <small>{stats.due} due · Folder</small>
+              <small>
+                {stats.due} due · {totalCards(stats)} {totalCards(stats) === 1 ? 'card' : 'cards'} · {deckIds.length} {deckIds.length === 1 ? 'deck' : 'decks'}
+              </small>
               <StackedProgress stats={stats} />
             </span>
             <ArrowRight size={16} />
