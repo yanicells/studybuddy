@@ -7,13 +7,19 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 
+  await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
+  const libraryStudy = page.getByRole('dialog', { name: 'Study Library' })
+  await expect(libraryStudy.getByRole('checkbox', { name: /CSCI 50\.01/ })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await libraryStudy.getByRole('button', { name: 'Close dialog' }).click()
+
   await page.getByRole('button', { name: 'Open library' }).click()
   await expect(page.getByRole('navigation', { name: 'Study library' })).toBeVisible()
   await page.getByRole('navigation', { name: 'Study library' }).getByRole('button', { name: /Architecture vs Organization/ }).click()
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 
-  await page.getByRole('button', { name: /Study/ }).click()
-  await page.getByRole('dialog', { name: 'Study' }).getByRole('button', { name: /Due only/ }).click()
+  await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
+  await page.getByRole('dialog', { name: /Study Architecture vs Organization/ }).getByRole('button', { name: /Due only/ }).click()
   await expect(page.getByLabel('Answer choices')).toBeVisible()
   await expect(page.getByLabel('Answer choices').getByRole('button')).toHaveCount(4)
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)

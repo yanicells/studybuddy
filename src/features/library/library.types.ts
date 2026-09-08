@@ -1,4 +1,5 @@
 import type { Card, Deck, Folder } from '../../core/types'
+import type { StudySource } from '../../core/studyScope'
 
 export type Selection =
   | { kind: 'folder'; id: string }
@@ -26,7 +27,7 @@ export type LibraryDialog =
   | { kind: 'move'; entity: 'folder' | 'deck'; id: string }
   | { kind: 'import'; deckId: string | null; folderId: string | null }
   | { kind: 'card'; deckId: string; card: Card | null }
-  | { kind: 'study'; deckId: string }
+  | { kind: 'study'; source: StudySource }
   | null
 
 export function createNameDialog(
@@ -89,6 +90,6 @@ export function deleteDeckDialog(id: string): LibraryDialog {
   }
 }
 
-export function studyDialog(deckId: string): LibraryDialog {
-  return { kind: 'study', deckId }
+export function studyDialog(source: StudySource): LibraryDialog {
+  return { kind: 'study', source }
 }

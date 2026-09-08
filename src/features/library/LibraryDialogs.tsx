@@ -1,4 +1,4 @@
-import { Clock, FileText, Folder, Layers3, Upload } from 'lucide-react'
+import { FileText, Folder, Layers3, Upload } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from '@tanstack/react-router'
 
@@ -7,7 +7,8 @@ import { Dialog } from '../../components/Dialog'
 import { withBulletPrefix } from '../../core/blocks'
 import { wrapMarks } from '../../core/import'
 import type { StudyMode } from '../../core/queue'
-import { EMPTY_STATS, type LibrarySnapshot } from '../../core/types'
+import type { StudySource } from '../../core/studyScope'
+import type { LibrarySnapshot } from '../../core/types'
 import {
   createDeckFn,
   createFolderFn,
@@ -22,6 +23,7 @@ import {
   saveCardFn,
 } from './library.functions'
 import type { LibraryDialog, Selection } from './library.types'
+import { StudyPickerDialog } from './StudyPickerDialog'
 
 interface LibraryDialogsProps {
   dialog: LibraryDialog
@@ -30,7 +32,7 @@ interface LibraryDialogsProps {
   onClose: () => void
   onSelect: (selection: Selection) => void
   onNotice: (message: string) => void
-  onStartStudy: (deckId: string, mode: StudyMode) => void
+  onStartStudy: (deckIds: string[], source: StudySource, mode: StudyMode) => void
 }
 
 export function LibraryDialogs({
@@ -320,44 +322,13 @@ function LibraryDialogContent({
   }
 
   if (dialog.kind === 'study') {
-    const deck = library.decks.find((item) => item.id === dialog.deckId)
-    const stats = library.statsByDeck[dialog.deckId] ?? EMPTY_STATS
-    const total = stats.new + stats.learning + stats.mastered
     return (
-      <Dialog
-        title="Study"
-        description={
-          deck
-            ? `Quiz due cards only, or every card in ${deck.name}.`
-            : 'Quiz due cards only, or every card in this deck.'
-        }
+      <StudyPickerDialog
+        dialog={dialog}
+        library={library}
         onClose={onClose}
-      >
-        <div className="move-list">
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              onStartStudy(dialog.deckId, 'due')
-            }}
-          >
-            <span><Clock size={17} /> Due only</span>
-            <small>{stats.due} due</small>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onClose()
-              onStartStudy(dialog.deckId, 'all')
-            }}
-          >
-            <span><Layers3 size={17} /> All cards</span>
-            <small>
-              {total} {total === 1 ? 'card' : 'cards'}
-            </small>
-          </button>
-        </div>
-      </Dialog>
+        onStartStudy={onStartStudy}
+      />
     )
   }
 
@@ -416,5 +387,6 @@ function dialogKey(dialog: NonNullable<LibraryDialog>): string {
     return `${dialog.kind}-${dialog.entity}-${dialog.id}`
   }
   if (dialog.kind === 'card') return `${dialog.kind}-${dialog.card?.id ?? 'new'}`
+  if (dialog.kind === 'study') return `${dialog.kind}-${dialog.source.kind}-${'id' in dialog.source ? dialog.source.id : 'all'}`
   return `${dialog.kind}-${dialog.deckId ?? 'new'}`
 }

@@ -36,7 +36,11 @@ export const importSchema = z.object({
 })
 
 export const startStudySchema = z.object({
-  deckId: id,
+  deckIds: z
+    .array(id)
+    .min(1)
+    .max(1000)
+    .refine((ids) => new Set(ids).size === ids.length, 'Deck ids must be unique'),
   mode: z.enum(['due', 'all']),
 })
 
