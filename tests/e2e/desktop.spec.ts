@@ -101,6 +101,10 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible()
   await page.keyboard.press('Enter')
   await expect(page.getByText(/Round 1/)).toBeVisible()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByText(/^Looking back\./)).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByText(/^Looking back\./)).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 })
@@ -151,6 +155,17 @@ test('keeps the open screen in the URL and redirects missing items', async ({ pa
   await expect(page.getByRole('heading', { name: 'CSCI 50.01' })).toBeVisible()
   await page.goBack()
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
+})
+
+test('remembers which rail folders are open after a reload', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  const rail = page.getByRole('navigation', { name: 'Study library' })
+  await rail.getByRole('button', { name: 'Collapse CSCI 50.01' }).click()
+  await expect(rail.getByRole('button', { name: 'Expand CSCI 50.01' })).toBeVisible()
+
+  await page.reload()
+  await expect(rail.getByRole('button', { name: 'Expand CSCI 50.01' })).toBeVisible()
 })
 
 function cardWithText(page: Page, text: string): Locator {
