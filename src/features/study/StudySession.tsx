@@ -427,8 +427,8 @@ function persistAnswer(
     .then((updated) => {
       cards.set(updated.id, updated)
     })
-    .catch((error: unknown) => {
-      onNotice(error instanceof Error ? error.message : 'The answer could not be saved.')
+    .catch(() => {
+      onNotice('An answer could not be saved, so that card will come up again next time.')
     })
   queue.set(cardId, next)
 }

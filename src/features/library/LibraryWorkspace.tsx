@@ -132,9 +132,9 @@ export function LibraryWorkspace() {
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       setNotice(
-        /changed|reload/i.test(message) && message.length > 0
+        /changed|reload/i.test(message)
           ? message
-          : 'The new order could not be saved. Run `npx convex deploy` so the reorder functions exist, reload, and try again.',
+          : 'The new order could not be saved. Reload and try again.',
       )
     } finally {
       setPendingReorder(null)

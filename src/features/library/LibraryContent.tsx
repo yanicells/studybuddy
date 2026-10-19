@@ -76,7 +76,7 @@ function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryConten
         <EmptyState
           icon={<Folder />}
           title="Nothing here yet"
-          body="Use Folder or Deck above to add something to the library."
+          body="Add a folder or deck from the actions at the top."
         />
       ) : (
         <div className="folder-grid" aria-label="Folders and decks">
@@ -161,7 +161,7 @@ function FolderContent({ library, selection, onSelect, reordering, onReorder }: 
   const decks = library.decks.filter((deck) => deck.folderId === selection.id)
 
   if (folders.length === 0 && decks.length === 0) {
-    return <EmptyState icon={<Folder />} title="This folder is empty" body="Use Folder or Deck above to add something here." />
+    return <EmptyState icon={<Folder />} title="This folder is empty" body="Add a folder or deck from the actions at the top." />
   }
 
   return (

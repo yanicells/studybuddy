@@ -143,7 +143,7 @@ export function StudyPickerDialog({
 
       <p className="study-picker__label">Choose session</p>
       <div className="move-list study-mode-list">
-        <button type="button" disabled={selectedCards === 0} onClick={() => start('due')}>
+        <button type="button" disabled={selectedStats.due === 0} onClick={() => start('due')}>
           <span><Clock size={17} /> Due only</span>
           <small>{selectedStats.due} due</small>
         </button>
