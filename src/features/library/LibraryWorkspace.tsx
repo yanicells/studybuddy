@@ -26,6 +26,7 @@ import type { StudyMode } from '../../core/queue'
 import { folderPath, rollupStats } from '../../core/stats'
 import { studyDeckIds, type StudySource } from '../../core/studyScope'
 import type { Folder, LibrarySnapshot } from '../../core/types'
+import { readExpandedFolders, saveExpandedFolders } from './expandedFolders'
 import { reorderDecksFn, reorderFoldersFn } from './library.functions'
 import { selectionLocation, studySearch } from './library.navigation'
 import { CreatePlaceButtons } from './LibraryContent'
@@ -62,7 +63,9 @@ export function LibraryWorkspace() {
     () => (pendingReorder ? applyReorder(snapshot, pendingReorder) : snapshot),
     [pendingReorder, snapshot],
   )
-  const [expanded, setExpanded] = useState(() => initialExpanded(snapshot))
+  const [expanded, setExpanded] = useState(
+    () => readExpandedFolders() ?? initialExpanded(snapshot),
+  )
   const [dialog, setDialog] = useState<LibraryDialog>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -91,6 +94,12 @@ export function LibraryWorkspace() {
     setRevealedFolderId(openFolderId)
     setExpanded((current) => withFolderPath(current, library.folders, openFolderId))
   }
+
+  // Remember which folders are open so the rail looks the same on the next visit.
+  useEffect(() => {
+    const folderIds = new Set(library.folders.map((folder) => folder.id))
+    saveExpandedFolders([...expanded].filter((id) => folderIds.has(id)))
+  }, [expanded, library.folders])
 
   useEffect(() => {
     if (!notice) return
