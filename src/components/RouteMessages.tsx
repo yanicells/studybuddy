@@ -36,7 +36,8 @@ export function RouteNotFound() {
 }
 
 // fetch() rejects with a TypeError when the network is down.
-function errorMessage(error: Error): string {
+function errorMessage(error: unknown): string {
   if (error instanceof TypeError) return 'Check your connection and try again.'
-  return error.message || 'Something went wrong while loading.'
+  if (error instanceof Error && error.message) return error.message
+  return 'Something went wrong while loading.'
 }
