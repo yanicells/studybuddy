@@ -102,12 +102,13 @@ function LibraryDialogContent({
     return blocked
   }, [dialog, library.folders])
 
+  // Runs a mutation, then waits for the refreshed library so the dialog closes onto current data.
   async function commit<Result>(work: () => Promise<Result>, after?: (result: Result) => void) {
     setPending(true)
     setError(null)
     try {
       const result = await work()
-      await router.invalidate()
+      await router.invalidate({ sync: true })
       after?.(result)
       onClose()
     } catch (caught) {

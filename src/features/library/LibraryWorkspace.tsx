@@ -115,7 +115,7 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           data: { parentId: request.parentId, orderedIds: request.orderedIds },
         })
       }
-      await router.invalidate()
+      await router.invalidate({ sync: true })
     } catch (error) {
       const message = error instanceof Error ? error.message : ''
       setNotice(
