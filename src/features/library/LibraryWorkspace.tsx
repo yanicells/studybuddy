@@ -332,7 +332,7 @@ export function LibraryWorkspace() {
             </OverflowMenu>
           </div>
         </header>
-        <div className="workspace-scroll">
+        <div className="workspace-scroll" data-scroll-restoration-id="workspace">
           <WorkspaceContext.Provider value={workspace}>
             <Outlet />
           </WorkspaceContext.Provider>

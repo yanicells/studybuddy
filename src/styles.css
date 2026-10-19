@@ -169,6 +169,18 @@ summary {
   color: var(--muted);
 }
 
+.route-message__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.route-message__actions .button {
+  text-decoration: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
