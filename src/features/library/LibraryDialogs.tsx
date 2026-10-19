@@ -22,6 +22,7 @@ import {
   renameFolderFn,
   saveCardFn,
 } from './library.functions'
+import { selectionAfterDelete } from './library.navigation'
 import type { LibraryDialog, Selection } from './library.types'
 import { StudyPickerDialog } from './StudyPickerDialog'
 
@@ -30,7 +31,7 @@ interface LibraryDialogsProps {
   library: LibrarySnapshot
   selection: Selection
   onClose: () => void
-  onSelect: (selection: Selection) => void
+  onSelect: (selection: Selection) => Promise<void> | void
   onNotice: (message: string) => void
   onStartStudy: (deckIds: string[], source: StudySource, mode: StudyMode) => void
 }
@@ -57,6 +58,7 @@ function LibraryDialogContent({
   onStartStudy,
 }: LibraryDialogContentProps) {
   const router = useRouter()
+  const [edited, setEdited] = useState(false)
   const [name, setName] = useState(() =>
     dialog.kind === 'name' ? dialog.initialName : '',
   )
@@ -102,13 +104,25 @@ function LibraryDialogContent({
     return blocked
   }, [dialog, library.folders])
 
-  async function commit<Result>(work: () => Promise<Result>, after?: (result: Result) => void) {
+  // Every way of closing goes through here: wait for a running save, and ask before
+  // throwing away typed card text.
+  function dismiss() {
+    if (pending) return
+    if (edited && !window.confirm('Discard your changes?')) return
+    onClose()
+  }
+
+  // Runs a mutation, waits for the refreshed library, then lets `after` navigate onto current data.
+  async function commit<Result>(
+    work: () => Promise<Result>,
+    after?: (result: Result) => Promise<void> | void,
+  ) {
     setPending(true)
     setError(null)
     try {
       const result = await work()
-      await router.invalidate()
-      after?.(result)
+      await router.invalidate({ sync: true })
+      await after?.(result)
       onClose()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The change could not be saved.')
@@ -120,6 +134,10 @@ function LibraryDialogContent({
   async function submitName(event: FormEvent) {
     event.preventDefault()
     if (dialog?.kind !== 'name') return
+    if (!name.trim()) {
+      setError('Enter a name.')
+      return
+    }
     await commit(
       async () => {
         if (dialog.entity === 'folder') {
@@ -141,8 +159,8 @@ function LibraryDialogContent({
         await renameDeckFn({ data: { id: dialog.id, parentId: null, name } })
         return null
       },
-      (created) => {
-        if (created) onSelect(created)
+      async (created) => {
+        if (created) await onSelect(created)
       },
     )
   }
@@ -150,6 +168,10 @@ function LibraryDialogContent({
   async function submitCard(event: FormEvent) {
     event.preventDefault()
     if (dialog?.kind !== 'card') return
+    if (!front.trim()) {
+      setError('Add text to the front of the card.')
+      return
+    }
     await commit(async () => {
       await saveCardFn({
         data: {
@@ -165,6 +187,10 @@ function LibraryDialogContent({
   async function submitImport(event: FormEvent) {
     event.preventDefault()
     if (dialog?.kind !== 'import') return
+    if (!importText.trim()) {
+      setError('Paste some cards or choose a file to import.')
+      return
+    }
     await commit(
       async () => {
         const result = await importCardsFn({
@@ -176,8 +202,8 @@ function LibraryDialogContent({
         })
         return result
       },
-      (result) => {
-        onSelect({ kind: 'deck', id: result.deckId })
+      async (result) => {
+        await onSelect({ kind: 'deck', id: result.deckId })
         onNotice(result.notice ?? `Imported ${result.count} ${result.count === 1 ? 'card' : 'cards'}.`)
       },
     )
@@ -185,20 +211,14 @@ function LibraryDialogContent({
 
   async function confirmDelete() {
     if (dialog?.kind !== 'confirm') return
-    await commit(
-      async () => {
-        if (dialog.entity === 'folder') await deleteFolderFn({ data: { id: dialog.id } })
-        if (dialog.entity === 'deck') await deleteDeckFn({ data: { id: dialog.id } })
-        if (dialog.entity === 'card') await deleteCardFn({ data: { id: dialog.id } })
-        return (
-          (dialog.entity === 'folder' && selection?.kind === 'folder' && selection.id === dialog.id) ||
-          (dialog.entity === 'deck' && selection?.kind === 'deck' && selection.id === dialog.id)
-        )
-      },
-      (shouldClear) => {
-        if (shouldClear) onSelect(null)
-      },
-    )
+    const fallback = selectionAfterDelete(library, selection, dialog.entity, dialog.id)
+    await commit(async () => {
+      if (dialog.entity === 'folder') await deleteFolderFn({ data: { id: dialog.id } })
+      if (dialog.entity === 'deck') await deleteDeckFn({ data: { id: dialog.id } })
+      if (dialog.entity === 'card') await deleteCardFn({ data: { id: dialog.id } })
+      // Leave the deleted screen before refreshing, or its route would redirect to the library home.
+      if (fallback !== undefined) await onSelect(fallback)
+    })
   }
 
   async function moveTo(parentId: string | null) {
@@ -221,7 +241,7 @@ function LibraryDialogContent({
     const title = `${creating ? 'New' : 'Rename'} ${dialog.entity}`
     const description = creating ? `This ${dialog.entity} will be added to ${parentName}.` : undefined
     return (
-      <Dialog title={title} description={description} onClose={onClose}>
+      <Dialog title={title} description={description} onClose={dismiss}>
         <form className="dialog-form" aria-busy={pending} onSubmit={submitName}>
           <label>
             <span>Name</span>
@@ -235,7 +255,7 @@ function LibraryDialogContent({
             />
           </label>
           <DialogError error={error} />
-          <DialogActions pending={pending} onClose={onClose} action={creating ? `Create ${dialog.entity}` : 'Save'} />
+          <DialogActions pending={pending} onClose={dismiss} action={creating ? `Create ${dialog.entity}` : 'Save'} />
         </form>
       </Dialog>
     )
@@ -243,11 +263,11 @@ function LibraryDialogContent({
 
   if (dialog.kind === 'confirm') {
     return (
-      <Dialog title={dialog.title} description={dialog.description} onClose={onClose}>
+      <Dialog title={dialog.title} description={dialog.description} onClose={dismiss}>
         <div aria-busy={pending}>
           <DialogError error={error} />
           <div className="dialog-actions">
-            <Button onClick={onClose}>Cancel</Button>
+            <Button onClick={dismiss} disabled={pending}>Cancel</Button>
             <Button variant="danger" disabled={pending} onClick={confirmDelete}>
               {pending ? 'Deleting…' : 'Delete'}
             </Button>
@@ -259,7 +279,7 @@ function LibraryDialogContent({
 
   if (dialog.kind === 'move') {
     return (
-      <Dialog title="Move to" description="Choose a destination folder or the top-level library." onClose={onClose}>
+      <Dialog title="Move to" description="Choose a destination folder or the top-level library." onClose={dismiss}>
         <div className="move-list" aria-busy={pending}>
           <button type="button" onClick={() => moveTo(null)} disabled={pending}>
             <span><Layers3 size={17} /> Library</span>
@@ -283,7 +303,7 @@ function LibraryDialogContent({
       <Dialog
         title="Import cards"
         description="Put the prompt first, then start answer lines with a dash. Bold quiz terms with **asterisks**. Dashes stay bullets."
-        onClose={onClose}
+        onClose={dismiss}
         wide
       >
         <form className="dialog-form" aria-busy={pending} onSubmit={submitImport}>
@@ -292,7 +312,10 @@ function LibraryDialogContent({
             <textarea
               rows={12}
               value={importText}
-              onChange={(event) => setImportText(event.target.value)}
+              onChange={(event) => {
+                setImportText(event.target.value)
+                setEdited(true)
+              }}
               placeholder={'The **mitochondria** is the powerhouse of the cell\n- mitochondria'}
               required
               disabled={pending}
@@ -308,14 +331,16 @@ function LibraryDialogContent({
                 disabled={pending}
                 onChange={async (event) => {
                   const file = event.target.files?.[0]
-                  if (file) setImportText(await file.text())
+                  if (!file) return
+                  setImportText(await file.text())
+                  setEdited(true)
                 }}
               />
             </label>
           </div>
           <DialogError error={error} />
           {pending ? <p className="dialog-pending" role="status">Importing cards…</p> : null}
-          <DialogActions pending={pending} onClose={onClose} action="Import" icon={<Upload size={17} />} />
+          <DialogActions pending={pending} onClose={dismiss} action="Import" icon={<Upload size={17} />} />
         </form>
       </Dialog>
     )
@@ -333,14 +358,17 @@ function LibraryDialogContent({
   }
 
   return (
-    <Dialog title={dialog.card ? 'Edit card' : 'New card'} onClose={onClose} wide>
+    <Dialog title={dialog.card ? 'Edit card' : 'New card'} onClose={dismiss} wide>
       <form className="dialog-form" aria-busy={pending} onSubmit={submitCard}>
         <label>
           <span>Front</span>
           <textarea
             rows={5}
             value={front}
-            onChange={(event) => setFront(event.target.value)}
+            onChange={(event) => {
+              setFront(event.target.value)
+              setEdited(true)
+            }}
             required
             disabled={pending}
           />
@@ -350,12 +378,15 @@ function LibraryDialogContent({
           <textarea
             rows={5}
             value={back}
-            onChange={(event) => setBack(event.target.value)}
+            onChange={(event) => {
+              setBack(event.target.value)
+              setEdited(true)
+            }}
             disabled={pending}
           />
         </label>
         <DialogError error={error} />
-        <DialogActions pending={pending} onClose={onClose} action="Save card" />
+        <DialogActions pending={pending} onClose={dismiss} action="Save card" />
       </form>
     </Dialog>
   )

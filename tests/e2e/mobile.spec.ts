@@ -17,6 +17,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await expect(page.getByRole('navigation', { name: 'Study library' })).toBeVisible()
   await page.getByRole('navigation', { name: 'Study library' }).getByRole('button', { name: /Architecture vs Organization/ }).click()
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
+  await expect(page).toHaveURL(/\/decks\//)
 
   await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
   await page.getByRole('dialog', { name: /Study Architecture vs Organization/ }).getByRole('button', { name: /Due only/ }).click()
@@ -27,7 +28,11 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await page.getByLabel('Answer choices').getByRole('button').first().click()
   await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible()
   await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: /Previous answer|Look back/ }).click()
+  await expect(page.getByText(/^Looking back\./)).toBeVisible()
+  await page.getByRole('button', { name: 'Next', exact: true }).click()
   await page.getByRole('button', { name: 'Leave' }).click()
+  await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 
   await page.locator('.workspace-header').getByLabel('More actions', { exact: true }).click()
   await page.getByRole('button', { name: 'Card', exact: true }).click()

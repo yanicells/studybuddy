@@ -169,6 +169,18 @@ summary {
   color: var(--muted);
 }
 
+.route-message__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.route-message__actions .button {
+  text-decoration: none;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
@@ -686,6 +698,15 @@ summary {
   background: var(--ink);
   color: #fff;
   font-size: 0.82rem;
+}
+
+.notice.notice--floating {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top));
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .notice button {
@@ -1739,6 +1760,17 @@ summary {
   border-top: 1px solid var(--line);
 }
 
+.study-footer__lead {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.study-previous {
+  flex: 0 0 auto;
+}
+
 .feedback-copy {
   display: grid;
   gap: 0.15rem;
@@ -1785,6 +1817,12 @@ summary {
   margin: 0 0 0.4rem;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.complete-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 @keyframes fade-in {
@@ -1982,6 +2020,15 @@ summary {
 
   .study-footer .button {
     min-height: 44px;
+  }
+
+  .study-previous {
+    min-width: 44px;
+    padding-inline: 0.6rem;
+  }
+
+  .study-previous__label {
+    display: none;
   }
 
   .study-complete {

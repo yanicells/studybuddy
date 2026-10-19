@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { LibrarySnapshot } from './types'
-import { studyDeckIds, studySourceName } from './studyScope'
+import { resolveStudyDeckIds, studyDeckIds, studySourceExists, studySourceName } from './studyScope'
 
 describe('study scopes', () => {
   it('includes every nested deck in a folder scope', () => {
@@ -20,6 +20,19 @@ describe('study scopes', () => {
     expect(studySourceName(library, { kind: 'library' })).toBe('Library')
     expect(studySourceName(library, { kind: 'folder', id: 'folder-2' })).toBe('Week 1')
     expect(studySourceName(library, { kind: 'deck', id: 'deck-1' })).toBe('Cells')
+  })
+
+  it('keeps only requested decks that are still in scope', () => {
+    const folder = { kind: 'folder', id: 'folder-2' } as const
+    expect(resolveStudyDeckIds(library, folder)).toEqual(['deck-2'])
+    expect(resolveStudyDeckIds(library, folder, ['deck-1', 'deck-2', 'gone'])).toEqual(['deck-2'])
+    expect(resolveStudyDeckIds(library, { kind: 'library' }, ['gone'])).toEqual([])
+  })
+
+  it('notices when a study source was deleted', () => {
+    expect(studySourceExists(library, { kind: 'library' })).toBe(true)
+    expect(studySourceExists(library, { kind: 'folder', id: 'folder-1' })).toBe(true)
+    expect(studySourceExists(library, { kind: 'deck', id: 'gone' })).toBe(false)
   })
 })
 

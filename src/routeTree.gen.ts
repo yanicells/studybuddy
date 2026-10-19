@@ -9,50 +9,134 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LibraryRouteImport } from './routes/_library'
+import { Route as LibraryIndexRouteImport } from './routes/_library/index'
+import { Route as LibraryStudyRouteImport } from './routes/_library/study'
+import { Route as LibraryDecksDeckIdRouteImport } from './routes/_library/decks.$deckId'
+import { Route as LibraryFoldersFolderIdRouteImport } from './routes/_library/folders.$folderId'
 
-const IndexRoute = IndexRouteImport.update({
+const LibraryRoute = LibraryRouteImport.update({
+  id: '/_library',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LibraryIndexRoute = LibraryIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => LibraryRoute,
+} as any)
+const LibraryStudyRoute = LibraryStudyRouteImport.update({
+  id: '/study',
+  path: '/study',
+  getParentRoute: () => LibraryRoute,
+} as any)
+const LibraryDecksDeckIdRoute = LibraryDecksDeckIdRouteImport.update({
+  id: '/decks/$deckId',
+  path: '/decks/$deckId',
+  getParentRoute: () => LibraryRoute,
+} as any)
+const LibraryFoldersFolderIdRoute = LibraryFoldersFolderIdRouteImport.update({
+  id: '/folders/$folderId',
+  path: '/folders/$folderId',
+  getParentRoute: () => LibraryRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof LibraryIndexRoute
+  '/study': typeof LibraryStudyRoute
+  '/decks/$deckId': typeof LibraryDecksDeckIdRoute
+  '/folders/$folderId': typeof LibraryFoldersFolderIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/study': typeof LibraryStudyRoute
+  '/': typeof LibraryIndexRoute
+  '/decks/$deckId': typeof LibraryDecksDeckIdRoute
+  '/folders/$folderId': typeof LibraryFoldersFolderIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_library': typeof LibraryRouteWithChildren
+  '/_library/study': typeof LibraryStudyRoute
+  '/_library/': typeof LibraryIndexRoute
+  '/_library/decks/$deckId': typeof LibraryDecksDeckIdRoute
+  '/_library/folders/$folderId': typeof LibraryFoldersFolderIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/study' | '/decks/$deckId' | '/folders/$folderId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/study' | '/' | '/decks/$deckId' | '/folders/$folderId'
+  id:
+    | '__root__'
+    | '/_library'
+    | '/_library/study'
+    | '/_library/'
+    | '/_library/decks/$deckId'
+    | '/_library/folders/$folderId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  LibraryRoute: typeof LibraryRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_library': {
+      id: '/_library'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof LibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_library/': {
+      id: '/_library/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof LibraryIndexRouteImport
+      parentRoute: typeof LibraryRoute
+    }
+    '/_library/study': {
+      id: '/_library/study'
+      path: '/study'
+      fullPath: '/study'
+      preLoaderRoute: typeof LibraryStudyRouteImport
+      parentRoute: typeof LibraryRoute
+    }
+    '/_library/decks/$deckId': {
+      id: '/_library/decks/$deckId'
+      path: '/decks/$deckId'
+      fullPath: '/decks/$deckId'
+      preLoaderRoute: typeof LibraryDecksDeckIdRouteImport
+      parentRoute: typeof LibraryRoute
+    }
+    '/_library/folders/$folderId': {
+      id: '/_library/folders/$folderId'
+      path: '/folders/$folderId'
+      fullPath: '/folders/$folderId'
+      preLoaderRoute: typeof LibraryFoldersFolderIdRouteImport
+      parentRoute: typeof LibraryRoute
     }
   }
 }
 
+interface LibraryRouteChildren {
+  LibraryStudyRoute: typeof LibraryStudyRoute
+  LibraryIndexRoute: typeof LibraryIndexRoute
+  LibraryDecksDeckIdRoute: typeof LibraryDecksDeckIdRoute
+  LibraryFoldersFolderIdRoute: typeof LibraryFoldersFolderIdRoute
+}
+
+const LibraryRouteChildren: LibraryRouteChildren = {
+  LibraryStudyRoute: LibraryStudyRoute,
+  LibraryIndexRoute: LibraryIndexRoute,
+  LibraryDecksDeckIdRoute: LibraryDecksDeckIdRoute,
+  LibraryFoldersFolderIdRoute: LibraryFoldersFolderIdRoute,
+}
+
+const LibraryRouteWithChildren =
+  LibraryRoute._addFileChildren(LibraryRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  LibraryRoute: LibraryRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 
+import { RouteError, RouteNotFound } from '../components/RouteMessages'
 import stylesHref from '../styles.css?url'
 
 export const Route = createRootRoute({
@@ -36,13 +37,8 @@ export const Route = createRootRoute({
   }),
   component: RootComponent,
   shellComponent: RootDocument,
-  notFoundComponent: () => <main className="route-message">Page not found.</main>,
-  errorComponent: ({ error }) => (
-    <main className="route-message">
-      <h1>StudyBuddy could not open.</h1>
-      <p>{error.message}</p>
-    </main>
-  ),
+  notFoundComponent: RouteNotFound,
+  errorComponent: RouteError,
 })
 
 function RootComponent() {

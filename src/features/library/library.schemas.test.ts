@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import {
   cardSchema,
+  deckSearchSchema,
   importSchema,
   moveSchema,
   nameSchema,
   recordAnswerSchema,
   reorderSchema,
   startStudySchema,
+  studySearchSchema,
 } from './library.schemas'
 
 describe('library server boundaries', () => {
@@ -67,5 +69,23 @@ describe('library server boundaries', () => {
       orderedIds: ['1', '2'],
     })
     expect(() => reorderSchema.parse({ parentId: null, orderedIds: [''] })).toThrow()
+  })
+})
+
+describe('route search params', () => {
+  it('drops an unknown deck status filter instead of failing the page', () => {
+    expect(deckSearchSchema.parse({ status: 'learning' })).toEqual({ status: 'learning' })
+    expect(deckSearchSchema.parse({ status: 'bogus' })).toEqual({ status: undefined })
+  })
+
+  it('defaults study mode and ignores a malformed deck list', () => {
+    expect(studySearchSchema.parse({ folder: 'f1' })).toEqual({
+      folder: 'f1',
+      deck: undefined,
+      decks: undefined,
+      mode: 'due',
+    })
+    expect(studySearchSchema.parse({ decks: 'nope', mode: 'all' }).decks).toBeUndefined()
+    expect(studySearchSchema.parse({ decks: ['d1'], mode: 'all' })).toMatchObject({ decks: ['d1'], mode: 'all' })
   })
 })

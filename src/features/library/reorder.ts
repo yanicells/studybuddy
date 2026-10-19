@@ -1,5 +1,7 @@
 import type { DragEvent } from 'react'
 
+import type { LibrarySnapshot } from '../../core/types'
+
 export type ReorderKind = 'folder' | 'deck'
 
 export interface ReorderRequest {
@@ -39,6 +41,34 @@ export function dropSibling(
   const targetIndex = rest.indexOf(targetId)
   rest.splice(after ? targetIndex + 1 : targetIndex, 0, draggedId)
   return rest
+}
+
+/** Applies a pending reorder to a snapshot so the new order shows before the server confirms it. */
+export function applyReorder(library: LibrarySnapshot, request: ReorderRequest): LibrarySnapshot {
+  const rank = new Map(request.orderedIds.map((id, index) => [id, index]))
+  if (request.kind === 'folder') {
+    return {
+      ...library,
+      folders: reorderSiblings(library.folders, (folder) => folder.parentId === request.parentId, rank),
+    }
+  }
+  return {
+    ...library,
+    decks: reorderSiblings(library.decks, (deck) => deck.folderId === request.parentId, rank),
+  }
+}
+
+function reorderSiblings<Item extends { id: string; position: number }>(
+  items: Item[],
+  isSibling: (item: Item) => boolean,
+  rank: Map<string, number>,
+): Item[] {
+  const ordered = items
+    .filter(isSibling)
+    .sort((left, right) => (rank.get(left.id) ?? Infinity) - (rank.get(right.id) ?? Infinity))
+    .map((item, position) => ({ ...item, position }))
+  let next = 0
+  return items.map((item) => (isSibling(item) ? ordered[next++]! : item))
 }
 
 export function startReorderDrag(event: DragEvent, payload: DragPayload): void {

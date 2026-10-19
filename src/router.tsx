@@ -7,6 +7,8 @@ export function getRouter() {
     routeTree,
     defaultPreload: 'intent',
     scrollRestoration: true,
+    // The library scrolls inside its content column, not the window.
+    scrollToTopSelectors: ['[data-scroll-restoration-id="workspace"]'],
   })
 }
 

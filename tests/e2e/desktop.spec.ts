@@ -56,8 +56,10 @@ test('supports the complete library workflow', async ({ page }) => {
   await expect(page.getByText('What keeps persistence authoritative?')).toBeVisible()
 
   await page.getByRole('button', { name: 'New', exact: false }).click()
+  await expect(page).toHaveURL(/status=new/)
   await expect(page.getByText('What validates server input?')).toBeVisible()
   await page.getByRole('button', { name: 'New', exact: false }).click()
+  await expect(page).not.toHaveURL(/status=/)
 
   await cardWithText(page, 'What does a stable test avoid?').getByRole('button', { name: 'Delete' }).click()
   await page.getByRole('dialog', { name: 'Delete card?' }).getByRole('button', { name: 'Delete' }).click()
@@ -99,6 +101,10 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible()
   await page.keyboard.press('Enter')
   await expect(page.getByText(/Round 1/)).toBeVisible()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByText(/^Looking back\./)).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByText(/^Looking back\./)).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
 })
@@ -122,8 +128,44 @@ test('studies a selectable nested folder scope', async ({ page }) => {
   await dialog.getByRole('button', { name: /All cards/ }).click()
 
   await expect(page.locator('.study-header__copy')).toContainText('CSCI 50.01')
+  await expect(page.getByLabel('Answer choices')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('heading', { name: 'CSCI 50.01' })).toBeVisible()
+})
+
+test('keeps the open screen in the URL and redirects missing items', async ({ page }) => {
+  await page.goto('/decks/missing-deck')
+  await expect(page).toHaveURL(/\/$/)
+  await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
+
+  await page.goto('/study?folder=missing-folder')
+  await expect(page).toHaveURL(/\/$/)
+
+  await page.getByLabel('Folders and decks').getByRole('button', { name: /CSCI 50\.01/ }).click()
+  await expect(page).toHaveURL(/\/folders\//)
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'CSCI 50.01' })).toBeVisible()
+
+  await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
+  await page.getByRole('dialog', { name: 'Study CSCI 50.01' }).getByRole('button', { name: /All cards/ }).click()
+  await expect(page.getByLabel('Answer choices')).toBeVisible()
+  await expect(page).toHaveURL(/\/study\?.*folder=/)
+
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'CSCI 50.01' })).toBeVisible()
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
+})
+
+test('remembers which rail folders are open after a reload', async ({ page }) => {
+  await page.goto('/')
+  await page.waitForLoadState('networkidle')
+  const rail = page.getByRole('navigation', { name: 'Study library' })
+  await rail.getByRole('button', { name: 'Collapse CSCI 50.01' }).click()
+  await expect(rail.getByRole('button', { name: 'Expand CSCI 50.01' })).toBeVisible()
+
+  await page.reload()
+  await expect(rail.getByRole('button', { name: 'Expand CSCI 50.01' })).toBeVisible()
 })
 
 function cardWithText(page: Page, text: string): Locator {

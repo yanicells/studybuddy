@@ -121,6 +121,33 @@ describe('StudySession', () => {
     expect(screen.getByText('Another blank was missed. Back next round.')).toBeInTheDocument()
   })
 
+  it('looks back at an answered card without answering the live one', async () => {
+    const user = userEvent.setup()
+    vi.mocked(recordAnswerFn).mockImplementation(async ({ data }) => dueCards.find((card) => card.id === data.cardId)!)
+
+    renderSession()
+    expect(screen.queryByRole('button', { name: 'Previous answer' })).not.toBeInTheDocument()
+
+    const answeredChoices = choiceTexts()
+    await user.click(firstChoice())
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    const liveChoices = choiceTexts()
+
+    await user.click(screen.getByRole('button', { name: 'Previous answer' }))
+
+    expect(choiceTexts()).toEqual(answeredChoices)
+    expect(screen.getByText(/^Looking back\./)).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Answer choices')).getAllByRole('button')[0]).toBeDisabled()
+
+    await user.keyboard('2')
+    expect(recordAnswerFn).toHaveBeenCalledTimes(1)
+
+    await user.click(screen.getByRole('button', { name: 'Next' }))
+
+    expect(choiceTexts()).toEqual(liveChoices)
+    expect(screen.getByText('Press 1–4 to answer')).toBeInTheDocument()
+  })
+
   it('renders back-side cloze lines as bullets', async () => {
     vi.mocked(recordAnswerFn).mockResolvedValue(bulletCard)
 
@@ -141,6 +168,12 @@ describe('StudySession', () => {
 
 function firstChoice() {
   return within(screen.getByLabelText('Answer choices')).getAllByRole('button')[0]!
+}
+
+function choiceTexts() {
+  return within(screen.getByLabelText('Answer choices'))
+    .getAllByRole('button')
+    .map((button) => button.querySelector('p')?.textContent)
 }
 
 function choice(name: string) {

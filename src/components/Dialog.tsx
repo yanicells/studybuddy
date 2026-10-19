@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useRef, type ReactNode } from 'react'
 
 import { Button } from './Button'
 
@@ -16,6 +16,8 @@ const FOCUSABLE =
 
 export function Dialog({ title, description, children, onClose, wide = false }: DialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  // Read the latest onClose without rerunning the setup, which would steal focus.
+  const close = useEffectEvent(() => onClose())
 
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null
@@ -26,7 +28,7 @@ export function Dialog({ title, description, children, onClose, wide = false }: 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
-        onClose()
+        close()
         return
       }
       if (event.key !== 'Tab' || !dialogRef.current) return
@@ -48,7 +50,7 @@ export function Dialog({ title, description, children, onClose, wide = false }: 
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus()
     }
-  }, [onClose])
+  }, [])
 
   return (
     <div

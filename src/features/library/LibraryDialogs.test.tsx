@@ -89,6 +89,37 @@ describe('LibraryDialogs study choices', () => {
   })
 })
 
+describe('LibraryDialogs card editor', () => {
+  const cardDialog: LibraryDialog = { kind: 'card', deckId: '10', card: null }
+
+  it('asks before discarding typed text and stays open when declined', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderDialog({ dialog: cardDialog, onClose })
+
+    await user.type(screen.getByRole('textbox', { name: 'Front' }), 'Cells')
+    await user.keyboard('{Escape}')
+
+    expect(confirm).toHaveBeenCalledWith('Discard your changes?')
+    expect(onClose).not.toHaveBeenCalled()
+    confirm.mockRestore()
+  })
+
+  it('closes an untouched editor without asking', async () => {
+    const user = userEvent.setup()
+    const onClose = vi.fn()
+    const confirm = vi.spyOn(window, 'confirm')
+    renderDialog({ dialog: cardDialog, onClose })
+
+    await user.keyboard('{Escape}')
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+    confirm.mockRestore()
+  })
+})
+
 function renderDialog({
   onClose = vi.fn(),
   onStartStudy = vi.fn(),
