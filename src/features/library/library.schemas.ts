@@ -48,3 +48,19 @@ export const recordAnswerSchema = z.object({
   cardId: id,
   correct: z.boolean(),
 })
+
+/** Search params for /decks/$deckId. An unknown status falls back to every card. */
+export const deckSearchSchema = z.object({
+  status: z.enum(['new', 'learning', 'mastered']).optional().catch(undefined),
+})
+
+/**
+ * Search params for /study. `deck` or `folder` names the scope (neither means the whole
+ * library); `decks` narrows it, and leaving it out studies the full scope.
+ */
+export const studySearchSchema = z.object({
+  folder: id.optional().catch(undefined),
+  deck: id.optional().catch(undefined),
+  decks: z.array(id).min(1).max(1000).optional().catch(undefined),
+  mode: z.enum(['due', 'all']).catch('due'),
+})
