@@ -9,19 +9,26 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
-import { useRouter } from '@tanstack/react-router'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  Outlet,
+  getRouteApi,
+  useMatch,
+  useNavigate,
+  useParams,
+  useRouter,
+} from '@tanstack/react-router'
 
 import { AppIcon } from '../../components/AppIcon'
 import { Button } from '../../components/Button'
 import { OverflowMenu } from '../../components/OverflowMenu'
 import type { StudyMode } from '../../core/queue'
 import { folderPath, rollupStats } from '../../core/stats'
-import { studyDeckIds, studySourceName, type StudySource } from '../../core/studyScope'
-import type { LibrarySnapshot } from '../../core/types'
-import { StudySession } from '../study/StudySession'
-import { reorderDecksFn, reorderFoldersFn, startStudyFn } from './library.functions'
-import { LibraryContent, CreatePlaceButtons } from './LibraryContent'
+import { studyDeckIds, type StudySource } from '../../core/studyScope'
+import type { Folder, LibrarySnapshot } from '../../core/types'
+import { reorderDecksFn, reorderFoldersFn } from './library.functions'
+import { selectionLocation, studySearch } from './library.navigation'
+import { CreatePlaceButtons } from './LibraryContent'
 import { LibraryDialogs } from './LibraryDialogs'
 import { LibraryTree } from './LibraryTree'
 import {
@@ -33,44 +40,57 @@ import {
   studyDialog,
   type LibraryDialog,
   type Selection,
-  type StatusFilter,
 } from './library.types'
-import type { ReorderRequest } from './reorder'
+import { applyReorder, type ReorderRequest } from './reorder'
+import { WorkspaceContext, type Workspace } from './WorkspaceContext'
 
-interface StudyPayload {
-  deckName: string
-  backLabel: string
-  dueCards: Awaited<ReturnType<typeof startStudyFn>>['dueCards']
-  deckCards: Awaited<ReturnType<typeof startStudyFn>>['deckCards']
-}
+const libraryRoute = getRouteApi('/_library')
 
-export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapshot }>) {
+/**
+ * Layout for every library route: the folder rail, header actions, dialogs, and notices.
+ * The open folder or deck comes from the URL; the screen itself renders in the outlet.
+ * Study sessions take over the whole screen.
+ */
+export function LibraryWorkspace() {
+  const snapshot = libraryRoute.useLoaderData()
   const router = useRouter()
-  const [selection, setSelection] = useState<Selection>(null)
-  const [expanded, setExpanded] = useState(() => initialExpanded(library))
-  const [filter, setFilter] = useState<StatusFilter>('all')
+  const navigate = useNavigate()
+  const params = useParams({ strict: false })
+  const studying = useMatch({ from: '/_library/study', shouldThrow: false }) !== undefined
+  const [pendingReorder, setPendingReorder] = useState<ReorderRequest | null>(null)
+  const library = useMemo(
+    () => (pendingReorder ? applyReorder(snapshot, pendingReorder) : snapshot),
+    [pendingReorder, snapshot],
+  )
+  const [expanded, setExpanded] = useState(() => initialExpanded(snapshot))
   const [dialog, setDialog] = useState<LibraryDialog>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [startingStudy, setStartingStudy] = useState(false)
-  const [reordering, setReordering] = useState(false)
-  const [study, setStudy] = useState<StudyPayload | null>(null)
+  const reordering = pendingReorder !== null
 
-  const selectedFolderCandidate =
+  const selection: Selection = params.deckId
+    ? { kind: 'deck', id: params.deckId }
+    : params.folderId
+      ? { kind: 'folder', id: params.folderId }
+      : null
+  const selectedFolder =
     selection?.kind === 'folder'
       ? library.folders.find((folder) => folder.id === selection.id)
       : undefined
-  const selectedDeckCandidate =
+  const selectedDeck =
     selection?.kind === 'deck'
       ? library.decks.find((deck) => deck.id === selection.id)
       : undefined
-  const activeSelection =
-    (selection?.kind === 'folder' && selectedFolderCandidate) ||
-    (selection?.kind === 'deck' && selectedDeckCandidate)
-      ? selection
-      : null
-  const selectedFolder = activeSelection?.kind === 'folder' ? selectedFolderCandidate : undefined
-  const selectedDeck = activeSelection?.kind === 'deck' ? selectedDeckCandidate : undefined
+  const activeSelection = selectedFolder || selectedDeck ? selection : null
+
+  // Reveal the open item in the rail whenever the URL points somewhere new.
+  const openFolderId = selectedFolder?.id ?? selectedDeck?.folderId ?? null
+  const [revealedFolderId, setRevealedFolderId] = useState<string | null>(null)
+  if (revealedFolderId !== openFolderId) {
+    setRevealedFolderId(openFolderId)
+    setExpanded((current) => withFolderPath(current, library.folders, openFolderId))
+  }
 
   useEffect(() => {
     if (!notice) return
@@ -78,33 +98,17 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
     return () => window.clearTimeout(timeout)
   }, [notice])
 
-  const select = useCallback((next: Selection) => {
-    setSelection((current) => {
-      if (current?.kind !== next?.kind || current?.id !== next?.id) setFilter('all')
-      return next
-    })
-    if (next) {
-      const startId =
-        next.kind === 'folder'
-          ? next.id
-          : library.decks.find((deck) => deck.id === next.id)?.folderId ?? null
-      const path = folderPath(library.folders, startId)
-      if (path.length > 0) {
-        setExpanded((current) => {
-          const nextExpanded = new Set(current)
-          for (const id of path) nextExpanded.add(id)
-          return nextExpanded
-        })
-      }
-    }
+  const select = useCallback(async (next: Selection) => {
     setDrawerOpen(false)
-  }, [library.decks, library.folders])
+    await navigate(selectionLocation(next))
+  }, [navigate])
 
   const closeDialog = useCallback(() => setDialog(null), [])
   const createParentId = selectedFolder?.id ?? null
 
+  // Shows the new order immediately, then keeps it until the refreshed snapshot confirms it.
   const handleReorder = useCallback(async (request: ReorderRequest) => {
-    setReordering(true)
+    setPendingReorder(request)
     try {
       if (request.kind === 'folder') {
         await reorderFoldersFn({
@@ -124,26 +128,24 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           : 'The new order could not be saved. Run `npx convex deploy` so the reorder functions exist, reload, and try again.',
       )
     } finally {
-      setReordering(false)
+      setPendingReorder(null)
     }
   }, [router])
+
+  const workspace = useMemo<Workspace>(() => ({
+    library,
+    reordering,
+    select,
+    openDialog: setDialog,
+    reorder: (request) => void handleReorder(request),
+    notify: setNotice,
+  }), [handleReorder, library, reordering, select])
 
   async function beginStudy(deckIds: string[], source: StudySource, mode: StudyMode) {
     if (deckIds.length === 0) return
     setStartingStudy(true)
     try {
-      const payload = await startStudyFn({ data: { deckIds, mode } })
-      if (payload.dueCards.length === 0) {
-        setNotice('The selected decks have no cards yet.')
-        return
-      }
-      setStudy({
-        deckName: studySourceName(library, source),
-        backLabel: source.kind === 'deck' ? 'Back to deck' : 'Back to library',
-        ...payload,
-      })
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'The study session could not start.')
+      await navigate({ to: '/study', search: studySearch(library, source, deckIds, mode) })
     } finally {
       setStartingStudy(false)
     }
@@ -157,17 +159,16 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       : { kind: 'library' }
   const scopedDeckIds = studyDeckIds(library, studySource)
   const due = rollupStats(library, scopedDeckIds).due
+  const noticeBar = notice ? (
+    <Notice message={notice} floating={studying} onDismiss={() => setNotice(null)} />
+  ) : null
 
-  if (study) {
+  if (studying) {
     return (
-      <StudySession
-        {...study}
-        onNotice={setNotice}
-        onLeave={async () => {
-          setStudy(null)
-          await router.invalidate()
-        }}
-      />
+      <WorkspaceContext.Provider value={workspace}>
+        <Outlet />
+        {noticeBar}
+      </WorkspaceContext.Provider>
     )
   }
 
@@ -332,24 +333,12 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
           </div>
         </header>
         <div className="workspace-scroll">
-          <LibraryContent
-            library={library}
-            selection={activeSelection}
-            filter={filter}
-            reordering={reordering}
-            onFilter={setFilter}
-            onSelect={select}
-            onDialog={setDialog}
-            onReorder={(request) => void handleReorder(request)}
-          />
+          <WorkspaceContext.Provider value={workspace}>
+            <Outlet />
+          </WorkspaceContext.Provider>
         </div>
         </div>
-        {notice ? (
-          <div className="notice" role="status">
-            <span>{notice}</span>
-            <button type="button" aria-label="Dismiss message" onClick={() => setNotice(null)}><X size={16} /></button>
-          </div>
-        ) : null}
+        {noticeBar}
       </section>
 
       <LibraryDialogs
@@ -363,6 +352,26 @@ export function LibraryWorkspace({ library }: Readonly<{ library: LibrarySnapsho
       />
     </main>
   )
+}
+
+/** Dismissible status message; floats over the study screen when a session is open. */
+function Notice({
+  message,
+  floating,
+  onDismiss,
+}: Readonly<{ message: string; floating: boolean; onDismiss: () => void }>) {
+  return (
+    <div className={`notice${floating ? ' notice--floating' : ''}`} role="status">
+      <span>{message}</span>
+      <button type="button" aria-label="Dismiss message" onClick={onDismiss}><X size={16} /></button>
+    </div>
+  )
+}
+
+function withFolderPath(expanded: Set<string>, folders: Folder[], folderId: string | null): Set<string> {
+  const path = folderPath(folders, folderId)
+  if (path.every((id) => expanded.has(id))) return expanded
+  return new Set([...expanded, ...path])
 }
 
 function initialExpanded(library: LibrarySnapshot): Set<string> {

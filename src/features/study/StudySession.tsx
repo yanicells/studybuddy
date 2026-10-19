@@ -17,6 +17,11 @@ interface StudySessionProps {
   deckCards: Card[]
   onLeave: () => void
   onNotice: (message: string) => void
+  /**
+   * Called after the session unmounts and its in-flight answers have saved, e.g. to refresh
+   * library stats. Pass a stable callback.
+   */
+  onExit?: () => void
 }
 
 interface Feedback {
@@ -31,6 +36,7 @@ export function StudySession({
   deckCards,
   onLeave,
   onNotice,
+  onExit,
 }: StudySessionProps) {
   const [session] = useState(() => new Session(dueCards))
   const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
@@ -75,6 +81,13 @@ export function StudySession({
     setMissed(false)
     setQuestion(nextQuestion(session, cards))
   }, [cards, feedback, question, session, stepIndex])
+
+  useEffect(() => {
+    const queue = saves.current
+    return () => {
+      void Promise.allSettled(queue.values()).then(() => onExit?.())
+    }
+  }, [onExit])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -22,6 +22,7 @@ import {
   renameFolderFn,
   saveCardFn,
 } from './library.functions'
+import { selectionAfterDelete } from './library.navigation'
 import type { LibraryDialog, Selection } from './library.types'
 import { StudyPickerDialog } from './StudyPickerDialog'
 
@@ -30,7 +31,7 @@ interface LibraryDialogsProps {
   library: LibrarySnapshot
   selection: Selection
   onClose: () => void
-  onSelect: (selection: Selection) => void
+  onSelect: (selection: Selection) => Promise<void> | void
   onNotice: (message: string) => void
   onStartStudy: (deckIds: string[], source: StudySource, mode: StudyMode) => void
 }
@@ -102,14 +103,17 @@ function LibraryDialogContent({
     return blocked
   }, [dialog, library.folders])
 
-  // Runs a mutation, then waits for the refreshed library so the dialog closes onto current data.
-  async function commit<Result>(work: () => Promise<Result>, after?: (result: Result) => void) {
+  // Runs a mutation, waits for the refreshed library, then lets `after` navigate onto current data.
+  async function commit<Result>(
+    work: () => Promise<Result>,
+    after?: (result: Result) => Promise<void> | void,
+  ) {
     setPending(true)
     setError(null)
     try {
       const result = await work()
       await router.invalidate({ sync: true })
-      after?.(result)
+      await after?.(result)
       onClose()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The change could not be saved.')
@@ -142,8 +146,8 @@ function LibraryDialogContent({
         await renameDeckFn({ data: { id: dialog.id, parentId: null, name } })
         return null
       },
-      (created) => {
-        if (created) onSelect(created)
+      async (created) => {
+        if (created) await onSelect(created)
       },
     )
   }
@@ -177,8 +181,8 @@ function LibraryDialogContent({
         })
         return result
       },
-      (result) => {
-        onSelect({ kind: 'deck', id: result.deckId })
+      async (result) => {
+        await onSelect({ kind: 'deck', id: result.deckId })
         onNotice(result.notice ?? `Imported ${result.count} ${result.count === 1 ? 'card' : 'cards'}.`)
       },
     )
@@ -186,20 +190,14 @@ function LibraryDialogContent({
 
   async function confirmDelete() {
     if (dialog?.kind !== 'confirm') return
-    await commit(
-      async () => {
-        if (dialog.entity === 'folder') await deleteFolderFn({ data: { id: dialog.id } })
-        if (dialog.entity === 'deck') await deleteDeckFn({ data: { id: dialog.id } })
-        if (dialog.entity === 'card') await deleteCardFn({ data: { id: dialog.id } })
-        return (
-          (dialog.entity === 'folder' && selection?.kind === 'folder' && selection.id === dialog.id) ||
-          (dialog.entity === 'deck' && selection?.kind === 'deck' && selection.id === dialog.id)
-        )
-      },
-      (shouldClear) => {
-        if (shouldClear) onSelect(null)
-      },
-    )
+    const fallback = selectionAfterDelete(library, selection, dialog.entity, dialog.id)
+    await commit(async () => {
+      if (dialog.entity === 'folder') await deleteFolderFn({ data: { id: dialog.id } })
+      if (dialog.entity === 'deck') await deleteDeckFn({ data: { id: dialog.id } })
+      if (dialog.entity === 'card') await deleteCardFn({ data: { id: dialog.id } })
+      // Leave the deleted screen before refreshing, or its route would redirect to the library home.
+      if (fallback !== undefined) await onSelect(fallback)
+    })
   }
 
   async function moveTo(parentId: string | null) {

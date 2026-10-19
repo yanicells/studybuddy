@@ -688,6 +688,15 @@ summary {
   font-size: 0.82rem;
 }
 
+.notice.notice--floating {
+  position: fixed;
+  top: calc(0.75rem + env(safe-area-inset-top));
+  right: auto;
+  bottom: auto;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 .notice button {
   display: grid;
   place-items: center;
@@ -1785,6 +1794,12 @@ summary {
   margin: 0 0 0.4rem;
   color: var(--muted);
   font-size: 0.88rem;
+}
+
+.complete-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 @keyframes fade-in {
