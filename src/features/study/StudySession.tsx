@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
@@ -29,6 +29,14 @@ interface Feedback {
   correct: boolean
 }
 
+/** An answered step exactly as it was shown, so the learner can look back at it. */
+interface AnsweredStep {
+  question: Question
+  stepIndex: number
+  feedback: Feedback
+  note: string
+}
+
 export function StudySession({
   deckName,
   backLabel = 'Back to deck',
@@ -44,11 +52,15 @@ export function StudySession({
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [missed, setMissed] = useState(false)
+  const [history, setHistory] = useState<AnsweredStep[]>([])
+  // Index into history while looking back; null shows the live card.
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null)
   const answering = useRef(false)
   const saves = useRef(new Map<string, Promise<void>>())
   const done = question === null
   const step = question?.steps[stepIndex]
   const lastStep = question != null && stepIndex === question.steps.length - 1
+  const reviewing = reviewIndex === null ? null : history[reviewIndex] ?? null
 
   const pick = useCallback(
     (index: number) => {
@@ -70,7 +82,14 @@ export function StudySession({
   )
 
   const continueSession = useCallback(() => {
-    if (!feedback || !question) return
+    const current = question?.steps[stepIndex]
+    if (!feedback || !question || !current) return
+    const note = feedbackNote(current, feedback, {
+      lastStep: stepIndex === question.steps.length - 1,
+      missed,
+      waiting: session.isWaiting(question.cardId),
+    })
+    setHistory((answered) => [...answered, { question, stepIndex, feedback, note }])
     answering.current = false
     setFeedback(null)
     if (stepIndex + 1 < question.steps.length) {
@@ -80,7 +99,17 @@ export function StudySession({
     setStepIndex(0)
     setMissed(false)
     setQuestion(nextQuestion(session, cards))
-  }, [cards, feedback, question, session, stepIndex])
+  }, [cards, feedback, missed, question, session, stepIndex])
+
+  const showPrevious = useCallback(() => {
+    if (history.length === 0) return
+    setReviewIndex((index) => (index === null ? history.length - 1 : Math.max(0, index - 1)))
+  }, [history.length])
+
+  // Moving past the newest answered step returns to the live card.
+  const showNext = useCallback(() => {
+    setReviewIndex((index) => (index === null || index + 1 >= history.length ? null : index + 1))
+  }, [history.length])
 
   useEffect(() => {
     const queue = saves.current
@@ -99,6 +128,18 @@ export function StudySession({
         onLeave()
         return
       }
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        showPrevious()
+        return
+      }
+      if (reviewing) {
+        if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          showNext()
+        }
+        return
+      }
       if (feedback && (event.key === 'Enter' || event.key === ' ')) {
         event.preventDefault()
         continueSession()
@@ -112,7 +153,7 @@ export function StudySession({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [continueSession, feedback, onLeave, pick])
+  }, [continueSession, feedback, onLeave, pick, reviewing, showNext, showPrevious])
 
   const roundLength = Math.max(session.roundLength, 1)
   const roundShown =
@@ -120,6 +161,21 @@ export function StudySession({
       ? session.roundAnswered
       : Math.min(session.roundAnswered + 1, roundLength)
   const progress = done ? 1 : roundShown / roundLength
+  const view = reviewing ?? (question ? { question, stepIndex, feedback } : null)
+  const viewStep = view?.question.steps[view.stepIndex]
+  const previousButton = history.length > 0 ? (
+    <Button
+      variant="ghost"
+      size="small"
+      className="study-previous"
+      icon={<ChevronLeft size={17} />}
+      aria-label="Previous answer"
+      disabled={reviewIndex === 0}
+      onClick={showPrevious}
+    >
+      <span className="study-previous__label">Previous</span>
+    </Button>
+  ) : null
 
   return (
     <main className="study-shell">
@@ -142,7 +198,7 @@ export function StudySession({
           label={done ? 'Session complete' : `Round ${session.round}, ${roundShown} of ${roundLength}`}
         />
 
-        {done ? (
+        {!view ? (
           <section className="study-complete">
             <div className="complete-card">
               <h1>Session complete</h1>
@@ -150,7 +206,14 @@ export function StudySession({
                 {session.completed} {session.completed === 1 ? 'card is' : 'cards are'} done for now.
                 Misses will come back sooner; anything you confirmed can wait until its next due day.
               </p>
-              <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
+              <div className="complete-card__actions">
+                <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
+                {history.length > 0 ? (
+                  <Button variant="ghost" icon={<ChevronLeft size={17} />} onClick={showPrevious}>
+                    Look back
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </section>
         ) : (
@@ -158,50 +221,42 @@ export function StudySession({
             <div className="study-scroll">
               <section className="study-stage">
                 <StudyCard
-                  question={question}
-                  currentStep={stepIndex}
-                  answered={feedback !== null}
+                  question={view.question}
+                  currentStep={view.stepIndex}
+                  answered={view.feedback !== null}
                 />
-                {step ? (
+                {viewStep ? (
                   <ChoiceList
-                    step={step}
-                    feedback={feedback}
+                    step={viewStep}
+                    feedback={view.feedback}
                     onPick={pick}
                   />
                 ) : null}
               </section>
             </div>
             <footer className="study-footer">
-              <div className="feedback-copy" aria-live="polite">
-                {feedback && step ? (
-                  <>
-                    <strong className={feedback.correct ? 'is-correct' : 'is-wrong'}>
-                      {feedback.correct ? <Check size={18} /> : <X size={18} />}
-                      {feedback.correct ? 'Correct' : 'Not quite'}
-                    </strong>
-                    {lastStep ? (
-                      !missed && feedback.correct ? (
-                        <span>
-                          {session.isWaiting(question.cardId)
-                            ? 'It skips the next set and comes back later.'
-                            : 'That’s enough for this session.'}
-                        </span>
-                      ) : !feedback.correct ? (
-                        <span>Answer: {step.answer}. Back next round.</span>
-                      ) : (
-                        <span>Another blank was missed. Back next round.</span>
-                      )
-                    ) : !feedback.correct ? (
-                      <span>Answer: {step.answer}.</span>
-                    ) : (
-                      <span>Next blank.</span>
-                    )}
-                  </>
-                ) : (
-                  <span>Press 1–4 to answer</span>
-                )}
+              <div className="study-footer__lead">
+                {previousButton}
+                <div className="feedback-copy" aria-live="polite">
+                  {reviewing ? (
+                    <FeedbackCopy feedback={reviewing.feedback} note={`Looking back. ${reviewing.note}`} />
+                  ) : feedback && step && question ? (
+                    <FeedbackCopy
+                      feedback={feedback}
+                      note={feedbackNote(step, feedback, {
+                        lastStep,
+                        missed,
+                        waiting: session.isWaiting(question.cardId),
+                      })}
+                    />
+                  ) : (
+                    <span>Press 1–4 to answer</span>
+                  )}
+                </div>
               </div>
-              {feedback ? (
+              {reviewing ? (
+                <Button variant="primary" onClick={showNext}>Next</Button>
+              ) : feedback ? (
                 <Button variant="primary" onClick={continueSession}>Continue</Button>
               ) : null}
             </footer>
@@ -210,6 +265,30 @@ export function StudySession({
       </div>
     </main>
   )
+}
+
+function FeedbackCopy({ feedback, note }: Readonly<{ feedback: Feedback; note: string }>) {
+  return (
+    <>
+      <strong className={feedback.correct ? 'is-correct' : 'is-wrong'}>
+        {feedback.correct ? <Check size={18} /> : <X size={18} />}
+        {feedback.correct ? 'Correct' : 'Not quite'}
+      </strong>
+      <span>{note}</span>
+    </>
+  )
+}
+
+/** What happens next after an answer: the correct answer on a miss, or when the card returns. */
+function feedbackNote(
+  step: QuestionStep,
+  feedback: Feedback,
+  { lastStep, missed, waiting }: { lastStep: boolean; missed: boolean; waiting: boolean },
+): string {
+  if (!lastStep) return feedback.correct ? 'Next blank.' : `Answer: ${step.answer}.`
+  if (!feedback.correct) return `Answer: ${step.answer}. Back next round.`
+  if (missed) return 'Another blank was missed. Back next round.'
+  return waiting ? 'It skips the next set and comes back later.' : 'That’s enough for this session.'
 }
 
 function StudyCard({
