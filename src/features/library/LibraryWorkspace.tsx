@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  Link,
   Outlet,
   getRouteApi,
   useMatch,
@@ -119,6 +120,7 @@ export function LibraryWorkspace() {
   }, [navigate])
 
   const closeDialog = useCallback(() => setDialog(null), [])
+  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
   const createParentId = selectedFolder?.id ?? null
 
   // Shows the new order immediately, then keeps it until the refreshed snapshot confirms it.
@@ -150,10 +152,9 @@ export function LibraryWorkspace() {
   const workspace = useMemo<Workspace>(() => ({
     library,
     reordering,
-    select,
     openDialog: setDialog,
     reorder: (request) => void handleReorder(request),
-  }), [handleReorder, library, reordering, select])
+  }), [handleReorder, library, reordering])
 
   async function beginStudy(deckIds: string[], source: StudySource, mode: StudyMode) {
     if (deckIds.length === 0) return
@@ -196,10 +197,16 @@ export function LibraryWorkspace() {
       />
       <aside className={`library-rail ${drawerOpen ? 'is-open' : ''}`}>
         <div className="rail-brand">
-          <button type="button" className="rail-home" onClick={() => select(null)}>
+          <Link
+            to="/"
+            className="rail-home"
+            activeOptions={{ exact: true }}
+            draggable={false}
+            onClick={closeDrawer}
+          >
             <AppIcon />
             <strong>StudyBuddy</strong>
-          </button>
+          </Link>
           <Button className="rail-close" variant="ghost" size="small" aria-label="Close library" onClick={() => setDrawerOpen(false)}>
             <X size={18} />
           </Button>
@@ -217,7 +224,7 @@ export function LibraryWorkspace() {
               return next
             })
           }
-          onSelect={select}
+          onNavigate={closeDrawer}
           onDialog={setDialog}
           onReorder={(request) => void handleReorder(request)}
         />

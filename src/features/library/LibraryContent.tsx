@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import type { DragEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { ArrowRight, ChevronDown, ChevronUp, Folder, FolderPlus, GripVertical, Layers3, Pencil, Trash2 } from 'lucide-react'
@@ -9,6 +10,7 @@ import { StackedProgress } from '../../components/ProgressBars'
 import { phrasesForSide } from '../../core/quiz'
 import { descendantDeckIds, rollupStats } from '../../core/stats'
 import { EMPTY_STATS, type Card, type DeckStats, type LibrarySnapshot, type Status } from '../../core/types'
+import { selectionLocation } from './library.navigation'
 import { createNameDialog, type LibraryDialog, type Selection, type StatusFilter } from './library.types'
 import {
   dropSibling,
@@ -26,7 +28,6 @@ interface LibraryContentProps {
   filter: StatusFilter
   reordering: boolean
   onFilter: (filter: StatusFilter) => void
-  onSelect: (selection: Selection) => void
   onDialog: (dialog: LibraryDialog) => void
   onReorder: (request: ReorderRequest) => void
 }
@@ -42,7 +43,7 @@ export function LibraryContent(props: LibraryContentProps) {
   return <DeckContent {...props} />
 }
 
-function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryContentProps) {
+function LibraryHome({ library, reordering, onReorder }: LibraryContentProps) {
   const folders = library.folders.filter((folder) => folder.parentId === null)
   const decks = library.decks.filter((deck) => deck.folderId === null)
   const dragProps = { reordering, ...useTileDrag(), onReorder }
@@ -94,7 +95,6 @@ function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryConten
                 parentId={null}
                 itemId={folder.id}
                 siblingIds={folders.map((sibling) => sibling.id)}
-                onOpen={() => onSelect({ kind: 'folder', id: folder.id })}
                 {...dragProps}
               >
                 <span className="tile-icon"><Folder size={18} /></span>
@@ -119,7 +119,6 @@ function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryConten
               parentId={null}
               itemId={deck.id}
               siblingIds={decks.map((sibling) => sibling.id)}
-              onOpen={() => onSelect({ kind: 'deck', id: deck.id })}
               {...dragProps}
             />
           ))}
@@ -133,18 +132,19 @@ function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryConten
             {dueDecks.map((deck) => {
               const stats = library.statsByDeck[deck.id] ?? EMPTY_STATS
               return (
-                <button
-                  type="button"
+                <Link
+                  to="/decks/$deckId"
+                  params={{ deckId: deck.id }}
                   className="due-row"
                   key={deck.id}
-                  onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+                  draggable={false}
                 >
                   <span>
                     <strong>{deck.name}</strong>
                     <small>{stats.learning} learning · {stats.mastered} mastered</small>
                   </span>
                   <span className="due-row__count">{stats.due}</span>
-                </button>
+                </Link>
               )
             })}
           </div>
@@ -154,7 +154,7 @@ function LibraryHome({ library, onSelect, reordering, onReorder }: LibraryConten
   )
 }
 
-function FolderContent({ library, selection, onSelect, reordering, onReorder }: LibraryContentProps) {
+function FolderContent({ library, selection, reordering, onReorder }: LibraryContentProps) {
   const dragProps = { reordering, ...useTileDrag(), onReorder }
   if (selection?.kind !== 'folder') return null
   const folders = library.folders.filter((folder) => folder.parentId === selection.id)
@@ -178,7 +178,6 @@ function FolderContent({ library, selection, onSelect, reordering, onReorder }: 
             parentId={selection.id}
             itemId={folder.id}
             siblingIds={folders.map((sibling) => sibling.id)}
-            onOpen={() => onSelect({ kind: 'folder', id: folder.id })}
             {...dragProps}
           >
             <span className="tile-icon"><Folder size={18} /></span>
@@ -202,7 +201,6 @@ function FolderContent({ library, selection, onSelect, reordering, onReorder }: 
           parentId={selection.id}
           itemId={deck.id}
           siblingIds={decks.map((sibling) => sibling.id)}
-          onOpen={() => onSelect({ kind: 'deck', id: deck.id })}
           {...dragProps}
         />
       ))}
@@ -220,7 +218,6 @@ function DeckTile({
   reordering,
   drag,
   setDrag,
-  onOpen,
   onReorder,
 }: Readonly<{
   name: string
@@ -232,7 +229,6 @@ function DeckTile({
   reordering: boolean
   drag: TileDragState
   setDrag: TileSetDrag
-  onOpen: () => void
   onReorder: (request: ReorderRequest) => void
 }>) {
   const total = totalCards(stats)
@@ -247,7 +243,6 @@ function DeckTile({
       reordering={reordering}
       drag={drag}
       setDrag={setDrag}
-      onOpen={onOpen}
       onReorder={onReorder}
     >
       <span className="tile-icon"><Layers3 size={18} /></span>
@@ -289,7 +284,6 @@ function SortableTile({
   reordering,
   drag,
   setDrag,
-  onOpen,
   onReorder,
   children,
 }: Readonly<{
@@ -299,7 +293,6 @@ function SortableTile({
   parentId: string | null
   itemId: string
   siblingIds: string[]
-  onOpen: () => void
   children: ReactNode
 } & TileSortableProps>) {
   const index = siblingIds.indexOf(itemId)
@@ -333,15 +326,15 @@ function SortableTile({
   }
   return (
     <div className="tile-wrap" role="group" aria-label={name}>
-      <button
-        type="button"
+      <Link
+        {...selectionLocation({ kind, id: itemId })}
         className={`${tileClass}${dropClass}`}
-        onClick={onOpen}
+        draggable={false}
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
         {children}
-      </button>
+      </Link>
       <OverflowMenu
         label="Change order"
         icon={<GripVertical size={14} />}

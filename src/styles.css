@@ -47,6 +47,7 @@ button {
   color: inherit;
 }
 
+a,
 button,
 summary {
   -webkit-tap-highlight-color: transparent;
@@ -179,6 +180,8 @@ summary {
 
 .route-message__actions .button {
   text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .app-shell {
@@ -315,7 +318,11 @@ summary {
   padding: 0;
   border: 0;
   background: transparent;
+  color: inherit;
   text-align: left;
+  text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
   cursor: pointer;
 }
 
@@ -466,6 +473,9 @@ summary {
   align-items: center;
   gap: 0.4rem;
   text-align: left;
+  text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .tree-row__toggle svg,
@@ -789,7 +799,11 @@ summary {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
+  color: inherit;
   text-align: left;
+  text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
   cursor: pointer;
 }
 
@@ -903,7 +917,11 @@ summary {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
+  color: inherit;
   text-align: left;
+  text-decoration: none;
+  -webkit-user-select: none;
+  user-select: none;
   cursor: pointer;
 }
 
