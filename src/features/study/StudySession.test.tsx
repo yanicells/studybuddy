@@ -148,6 +148,39 @@ describe('StudySession', () => {
     expect(screen.getByText('Press 1–4 to answer')).toBeInTheDocument()
   })
 
+  it('summarizes misses and studies them again in place', async () => {
+    const user = userEvent.setup()
+    const nucleus = dueCards[1]!
+    vi.mocked(recordAnswerFn).mockResolvedValue(nucleus)
+
+    render(
+      <StudySession
+        deckName="Anatomy"
+        dueCards={[nucleus]}
+        deckCards={dueCards}
+        onLeave={() => undefined}
+        onNotice={() => undefined}
+      />,
+    )
+
+    await user.click(wrongChoice('nucleus'))
+    await user.click(screen.getByRole('button', { name: 'Continue' }))
+    for (let hit = 0; hit < 2; hit += 1) {
+      await user.click(choice('nucleus'))
+      await user.click(screen.getByRole('button', { name: 'Continue' }))
+    }
+
+    expect(screen.getByText('0 of 1 right on the first try')).toBeInTheDocument()
+    expect(screen.getByText('The control center of the cell')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Look back' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Study misses again' }))
+    await user.click(choice('nucleus'))
+
+    expect(recordAnswerFn).toHaveBeenCalledTimes(4)
+    expect(recordAnswerFn).toHaveBeenLastCalledWith({ data: { cardId: nucleus.id, correct: true } })
+  })
+
   it('renders back-side cloze lines as bullets', async () => {
     vi.mocked(recordAnswerFn).mockResolvedValue(bulletCard)
 
@@ -178,6 +211,12 @@ function choiceTexts() {
 
 function choice(name: string) {
   return within(screen.getByLabelText('Answer choices')).getByRole('button', { name: new RegExp(name, 'i') })
+}
+
+function wrongChoice(answer: string) {
+  return within(screen.getByLabelText('Answer choices'))
+    .getAllByRole('button')
+    .find((button) => !new RegExp(answer, 'i').test(button.textContent ?? ''))!
 }
 
 function renderSession() {

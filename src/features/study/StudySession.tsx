@@ -1,11 +1,11 @@
-import { ArrowLeft, Check, ChevronLeft, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronLeft, RotateCcw, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
 import { Progress } from '../../components/ProgressBars'
 import { buildQuestion } from '../../core/quiz'
-import { Session } from '../../core/session'
+import { Session, summarizeResults, type CardResult, type SessionSummary } from '../../core/session'
 import { applyAnswer } from '../../core/srs'
 import type { Card, Question, QuestionStep, Segment } from '../../core/types'
 import { recordAnswerFn } from '../library/library.functions'
@@ -37,6 +37,10 @@ interface AnsweredStep {
   note: string
 }
 
+/**
+ * A study session over the due cards. "Study misses again" swaps in a fresh round of just the
+ * missed cards; the card map and save queue live here so they carry across rounds.
+ */
 export function StudySession({
   deckName,
   backLabel = 'Back to deck',
@@ -46,17 +50,74 @@ export function StudySession({
   onNotice,
   onExit,
 }: StudySessionProps) {
-  const [session] = useState(() => new Session(dueCards))
   const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
+  const [round, setRound] = useState({ key: 0, dueCards })
+  const saves = useRef(new Map<string, Promise<void>>())
+
+  const saveAnswer = useCallback(
+    (cardId: string, correct: boolean) => persistAnswer(saves.current, cards, cardId, correct, onNotice),
+    [cards, onNotice],
+  )
+
+  const studyAgain = useCallback(
+    (cardIds: string[]) => {
+      const again = cardIds.flatMap((id) => cards.get(id) ?? [])
+      setRound((current) => ({ key: current.key + 1, dueCards: again }))
+    },
+    [cards],
+  )
+
+  useEffect(() => {
+    const queue = saves.current
+    return () => {
+      void Promise.allSettled(queue.values()).then(() => onExit?.())
+    }
+  }, [onExit])
+
+  return (
+    <StudyRound
+      key={round.key}
+      deckName={deckName}
+      backLabel={backLabel}
+      dueCards={round.dueCards}
+      cards={cards}
+      onLeave={onLeave}
+      onAnswer={saveAnswer}
+      onStudyAgain={studyAgain}
+    />
+  )
+}
+
+interface StudyRoundProps {
+  deckName: string
+  backLabel: string
+  dueCards: Card[]
+  /** Every deck card by id, updated in place as answers are graded and saved. */
+  cards: Map<string, Card>
+  onLeave: () => void
+  onAnswer: (cardId: string, correct: boolean) => void
+  onStudyAgain: (cardIds: string[]) => void
+}
+
+function StudyRound({
+  deckName,
+  backLabel,
+  dueCards,
+  cards,
+  onLeave,
+  onAnswer,
+  onStudyAgain,
+}: StudyRoundProps) {
+  const [session] = useState(() => new Session(dueCards))
   const [question, setQuestion] = useState<Question | null>(() => nextQuestion(session, cards))
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [missed, setMissed] = useState(false)
   const [history, setHistory] = useState<AnsweredStep[]>([])
+  const [results, setResults] = useState<CardResult[]>([])
   // Index into history while looking back; null shows the live card.
   const [reviewIndex, setReviewIndex] = useState<number | null>(null)
   const answering = useRef(false)
-  const saves = useRef(new Map<string, Promise<void>>())
   const done = question === null
   const step = question?.steps[stepIndex]
   const lastStep = question != null && stepIndex === question.steps.length - 1
@@ -76,9 +137,10 @@ export function StudySession({
       const card = cards.get(question.cardId)
       session.answer(question.cardId, cardCorrect)
       if (card) cards.set(card.id, applyAnswer(card, cardCorrect))
-      persistAnswer(saves.current, cards, question.cardId, cardCorrect, onNotice)
+      setResults((graded) => [...graded, { cardId: question.cardId, correct: cardCorrect }])
+      onAnswer(question.cardId, cardCorrect)
     },
-    [cards, feedback, missed, onNotice, question, session, stepIndex],
+    [cards, feedback, missed, onAnswer, question, session, stepIndex],
   )
 
   const continueSession = useCallback(() => {
@@ -110,13 +172,6 @@ export function StudySession({
   const showNext = useCallback(() => {
     setReviewIndex((index) => (index === null || index + 1 >= history.length ? null : index + 1))
   }, [history.length])
-
-  useEffect(() => {
-    const queue = saves.current
-    return () => {
-      void Promise.allSettled(queue.values()).then(() => onExit?.())
-    }
-  }, [onExit])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -199,23 +254,15 @@ export function StudySession({
         />
 
         {!view ? (
-          <section className="study-complete">
-            <div className="complete-card">
-              <h1>Session complete</h1>
-              <p>
-                {session.completed} {session.completed === 1 ? 'card is' : 'cards are'} done for now.
-                Misses will come back sooner; anything you confirmed can wait until its next due day.
-              </p>
-              <div className="complete-card__actions">
-                <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
-                {history.length > 0 ? (
-                  <Button variant="ghost" icon={<ChevronLeft size={17} />} onClick={showPrevious}>
-                    Look back
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </section>
+          <SessionComplete
+            completed={session.completed}
+            summary={summarizeResults(results)}
+            cards={cards}
+            backLabel={backLabel}
+            onLeave={onLeave}
+            onLookBack={history.length > 0 ? showPrevious : undefined}
+            onStudyAgain={onStudyAgain}
+          />
         ) : (
           <>
             <div className="study-scroll">
@@ -264,6 +311,71 @@ export function StudySession({
         )}
       </div>
     </main>
+  )
+}
+
+/** End-of-round summary: first-try accuracy, the cards missed, and a way to drill them again. */
+function SessionComplete({
+  completed,
+  summary,
+  cards,
+  backLabel,
+  onLeave,
+  onLookBack,
+  onStudyAgain,
+}: Readonly<{
+  completed: number
+  summary: SessionSummary
+  cards: Map<string, Card>
+  backLabel: string
+  onLeave: () => void
+  onLookBack?: () => void
+  onStudyAgain: (cardIds: string[]) => void
+}>) {
+  const missedCards = summary.missedIds.flatMap((id) => cards.get(id) ?? [])
+  return (
+    <section className="study-complete">
+      <div className="complete-card">
+        <h1>Session complete</h1>
+        {summary.studied > 0 ? (
+          <p className="complete-card__score">
+            {summary.firstTry} of {summary.studied} right on the first try
+          </p>
+        ) : null}
+        <p>
+          {completed} {completed === 1 ? 'card is' : 'cards are'} done for now.
+          Misses will come back sooner; anything you confirmed can wait until its next due day.
+        </p>
+        {missedCards.length > 0 ? (
+          <div className="complete-misses">
+            <h2>Missed this session</h2>
+            <ul role="list">
+              {missedCards.map((card) => (
+                <li key={card.id}>
+                  <CardText text={card.front} phrases={[]} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="complete-card__actions">
+          <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
+          {missedCards.length > 0 ? (
+            <Button
+              icon={<RotateCcw size={16} />}
+              onClick={() => onStudyAgain(missedCards.map((card) => card.id))}
+            >
+              Study misses again
+            </Button>
+          ) : null}
+          {onLookBack ? (
+            <Button variant="ghost" icon={<ChevronLeft size={17} />} onClick={onLookBack}>
+              Look back
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </section>
   )
 }
 
