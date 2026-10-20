@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_STATS, type LibrarySnapshot } from '../../core/types'
+import { renderWithRouter } from '../../test/renderWithRouter'
 import { LibraryContent } from './LibraryContent'
 import type { ReorderRequest } from './reorder'
 
@@ -16,14 +17,13 @@ describe('LibraryContent reorder', () => {
   it('moves a deck up from its tile order menu', async () => {
     const user = userEvent.setup()
     const onReorder = vi.fn()
-    render(
+    await renderWithRouter(
       <LibraryContent
         library={library}
         selection={null}
         filter="all"
         reordering={false}
         onFilter={vi.fn()}
-        onSelect={vi.fn()}
         onDialog={vi.fn()}
         onReorder={onReorder}
       />,
@@ -43,41 +43,40 @@ describe('LibraryContent reorder', () => {
     expect(onReorder).toHaveBeenCalledWith(request)
   })
 
-  it('still opens a deck when its tile is clicked', async () => {
+  it('opens a deck from its tile link', async () => {
     const user = userEvent.setup()
-    const onSelect = vi.fn()
-    render(
+    const router = await renderWithRouter(
       <LibraryContent
         library={library}
         selection={null}
         filter="all"
         reordering={false}
         onFilter={vi.fn()}
-        onSelect={onSelect}
         onDialog={vi.fn()}
         onReorder={vi.fn()}
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: /Cells/ }))
-    expect(onSelect).toHaveBeenCalledWith({ kind: 'deck', id: '10' })
+    const tile = screen.getByRole('link', { name: /Cells/ })
+    expect(tile).toHaveAttribute('href', '/decks/10')
+    await user.click(tile)
+    expect(router.state.location.pathname).toBe('/decks/10')
   })
 
-  it('summarizes cards and decks inside nested folders', () => {
-    render(
+  it('summarizes cards and decks inside nested folders', async () => {
+    await renderWithRouter(
       <LibraryContent
         library={nestedLibrary}
         selection={null}
         filter="all"
         reordering={false}
         onFilter={vi.fn()}
-        onSelect={vi.fn()}
         onDialog={vi.fn()}
         onReorder={vi.fn()}
       />,
     )
 
-    expect(screen.getByRole('button', { name: /Course/ })).toHaveTextContent(
+    expect(screen.getByRole('link', { name: /Course/ })).toHaveTextContent(
       '3 due · 7 cards · 2 decks · 1 folder',
     )
   })

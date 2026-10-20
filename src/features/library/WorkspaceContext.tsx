@@ -10,7 +10,6 @@ export interface Workspace {
   /** The loaded snapshot with any pending reorder already applied. */
   library: LibrarySnapshot
   reordering: boolean
-  select: (selection: Selection) => Promise<void>
   openDialog: (dialog: LibraryDialog) => void
   reorder: (request: ReorderRequest) => void
   notify: (message: string) => void
@@ -34,7 +33,7 @@ export function WorkspaceContent({
   filter?: StatusFilter
   onFilter?: (filter: StatusFilter) => void
 }>) {
-  const { library, reordering, select, openDialog, reorder } = useWorkspace()
+  const { library, reordering, openDialog, reorder } = useWorkspace()
   return (
     <LibraryContent
       library={library}
@@ -42,7 +41,6 @@ export function WorkspaceContent({
       filter={filter}
       reordering={reordering}
       onFilter={onFilter}
-      onSelect={(next) => void select(next)}
       onDialog={openDialog}
       onReorder={reorder}
     />

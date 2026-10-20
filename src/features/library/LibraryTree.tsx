@@ -10,6 +10,7 @@ import {
   Pencil,
   Trash2,
 } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 
 import { Button } from '../../components/Button'
@@ -40,7 +41,8 @@ interface LibraryTreeProps {
   expanded: Set<string>
   reordering: boolean
   onToggleFolder: (id: string) => void
-  onSelect: (selection: Selection) => void
+  /** Called when a folder or deck link is clicked, e.g. to close the mobile drawer. */
+  onNavigate: () => void
   onDialog: (dialog: LibraryDialog) => void
   onReorder: (request: ReorderRequest) => void
 }
@@ -56,7 +58,7 @@ export function LibraryTree({
   expanded,
   reordering,
   onToggleFolder,
-  onSelect,
+  onNavigate,
   onDialog,
   onReorder,
 }: LibraryTreeProps) {
@@ -82,7 +84,7 @@ export function LibraryTree({
           drag={drag}
           setDrag={setDrag}
           onToggleFolder={onToggleFolder}
-          onSelect={onSelect}
+          onNavigate={onNavigate}
           onDialog={onDialog}
           onReorder={onReorder}
         />
@@ -98,7 +100,7 @@ export function LibraryTree({
           reordering={reordering}
           drag={drag}
           setDrag={setDrag}
-          onSelect={onSelect}
+          onNavigate={onNavigate}
           onDialog={onDialog}
           onReorder={onReorder}
         />
@@ -129,7 +131,7 @@ function FolderBranch({
   drag,
   setDrag,
   onToggleFolder,
-  onSelect,
+  onNavigate,
   onDialog,
   onReorder,
 }: BranchProps) {
@@ -157,14 +159,16 @@ function FolderBranch({
         >
           <ChevronRight className={`tree-row__chevron ${open ? 'is-open' : ''}`} size={15} />
         </button>
-        <button
-          type="button"
+        <Link
+          to="/folders/$folderId"
+          params={{ folderId: folder.id }}
           className="tree-row__label"
-          onClick={() => onSelect({ kind: 'folder', id: folder.id })}
+          draggable={false}
+          onClick={onNavigate}
         >
           <Folder size={16} />
           <span title={folder.name}>{folder.name}</span>
-        </button>
+        </Link>
         <RowMenu
           name={folder.name}
           reordering={reordering}
@@ -192,7 +196,7 @@ function FolderBranch({
               drag={drag}
               setDrag={setDrag}
               onToggleFolder={onToggleFolder}
-              onSelect={onSelect}
+              onNavigate={onNavigate}
               onDialog={onDialog}
               onReorder={onReorder}
             />
@@ -208,7 +212,7 @@ function FolderBranch({
               reordering={reordering}
               drag={drag}
               setDrag={setDrag}
-              onSelect={onSelect}
+              onNavigate={onNavigate}
               onDialog={onDialog}
               onReorder={onReorder}
             />
@@ -228,7 +232,7 @@ function DeckRow({
   reordering,
   drag,
   setDrag,
-  onSelect,
+  onNavigate,
   onDialog,
   onReorder,
 }: {
@@ -240,7 +244,7 @@ function DeckRow({
   reordering: boolean
   drag: DragState
   setDrag: BranchProps['setDrag']
-  onSelect: (selection: Selection) => void
+  onNavigate: () => void
   onDialog: (dialog: LibraryDialog) => void
   onReorder: (request: ReorderRequest) => void
 }) {
@@ -255,14 +259,16 @@ function DeckRow({
     >
       {order.grip}
       <span className="tree-row__deck-spacer" />
-      <button
-        type="button"
+      <Link
+        to="/decks/$deckId"
+        params={{ deckId: deck.id }}
         className="tree-row__label"
-        onClick={() => onSelect({ kind: 'deck', id: deck.id })}
+        draggable={false}
+        onClick={onNavigate}
       >
         <Layers3 size={16} />
         <span title={deck.name}>{deck.name}</span>
-      </button>
+      </Link>
       {due > 0 ? <span className="tree-row__count">{due}</span> : null}
       <RowMenu
         name={deck.name}
