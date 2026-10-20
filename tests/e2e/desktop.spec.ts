@@ -76,16 +76,16 @@ test('supports the complete library workflow', async ({ page }) => {
   await page.getByRole('dialog', { name: 'Delete deck?' }).getByRole('button', { name: 'Delete' }).click()
   await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible()
 
-  await page.getByLabel('Folders and decks').getByRole('button', { name: /E2E Folder Renamed/ }).click()
+  await page.getByLabel('Folders and decks').getByRole('link', { name: /E2E Folder Renamed/ }).click()
   await chooseMore(page, 'Delete')
   await page.getByRole('dialog', { name: 'Delete folder?' }).getByRole('button', { name: 'Delete' }).click()
-  await expect(page.getByRole('button', { name: /E2E Folder Renamed/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /E2E Folder Renamed/ })).toHaveCount(0)
 })
 
 test('records answers and supports keyboard study controls', async ({ page }) => {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
-  await page.getByLabel('Decks with cards due').getByRole('button', { name: /Architecture vs Organization/ }).click()
+  await page.getByLabel('Decks with cards due').getByRole('link', { name: /Architecture vs Organization/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
   await expect(page.locator('.deck-overview__summary')).toContainText('due')
@@ -112,7 +112,7 @@ test('records answers and supports keyboard study controls', async ({ page }) =>
 test('studies a selectable nested folder scope', async ({ page }) => {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
-  await page.getByLabel('Folders and decks').getByRole('button', { name: /CSCI 50\.01/ }).click()
+  await page.getByLabel('Folders and decks').getByRole('link', { name: /CSCI 50\.01/ }).click()
 
   await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Study CSCI 50.01' })
@@ -141,7 +141,7 @@ test('keeps the open screen in the URL and redirects missing items', async ({ pa
   await page.goto('/study?folder=missing-folder')
   await expect(page).toHaveURL(/\/$/)
 
-  await page.getByLabel('Folders and decks').getByRole('button', { name: /CSCI 50\.01/ }).click()
+  await page.getByLabel('Folders and decks').getByRole('link', { name: /CSCI 50\.01/ }).click()
   await expect(page).toHaveURL(/\/folders\//)
   await page.reload()
   await expect(page.getByRole('heading', { name: 'CSCI 50.01' })).toBeVisible()
