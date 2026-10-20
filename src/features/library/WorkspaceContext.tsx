@@ -12,7 +12,6 @@ export interface Workspace {
   reordering: boolean
   openDialog: (dialog: LibraryDialog) => void
   reorder: (request: ReorderRequest) => void
-  notify: (message: string) => void
 }
 
 export const WorkspaceContext = createContext<Workspace | null>(null)

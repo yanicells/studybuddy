@@ -1,11 +1,11 @@
-import { ArrowLeft, Check, ChevronLeft, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Check, ChevronLeft, RotateCcw, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
 import { Progress } from '../../components/ProgressBars'
 import { buildQuestion } from '../../core/quiz'
-import { Session } from '../../core/session'
+import { Session, summarizeResults, type CardResult, type SessionSummary } from '../../core/session'
 import { applyAnswer } from '../../core/srs'
 import type { Card, Question, QuestionStep, Segment } from '../../core/types'
 import { recordAnswerFn } from '../library/library.functions'
@@ -16,7 +16,6 @@ interface StudySessionProps {
   dueCards: Card[]
   deckCards: Card[]
   onLeave: () => void
-  onNotice: (message: string) => void
   /**
    * Called after the session unmounts and its in-flight answers have saved, e.g. to refresh
    * library stats. Pass a stable callback.
@@ -37,26 +36,100 @@ interface AnsweredStep {
   note: string
 }
 
+/**
+ * A study session over the due cards. "Study misses again" swaps in a fresh round of just the
+ * missed cards; the card map and save queue live here so they carry across rounds.
+ */
 export function StudySession({
   deckName,
   backLabel = 'Back to deck',
   dueCards,
   deckCards,
   onLeave,
-  onNotice,
   onExit,
 }: StudySessionProps) {
-  const [session] = useState(() => new Session(dueCards))
   const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
+  const [round, setRound] = useState({ key: 0, dueCards })
+  const saves = useRef(new Map<string, Promise<void>>())
+  // Answers whose save failed, kept until a retry succeeds.
+  const [unsaved, setUnsaved] = useState<CardResult[]>([])
+
+  const saveAnswer = useCallback(
+    (answer: CardResult) =>
+      persistAnswer(saves.current, cards, answer, () => setUnsaved((failed) => [...failed, answer])),
+    [cards],
+  )
+
+  const retrySaves = useCallback(() => {
+    setUnsaved((failed) => failed.filter((answer) => !unsaved.includes(answer)))
+    for (const answer of unsaved) saveAnswer(answer)
+  }, [saveAnswer, unsaved])
+
+  const studyAgain = useCallback(
+    (cardIds: string[]) => {
+      const again = cardIds.flatMap((id) => cards.get(id) ?? [])
+      setRound((current) => ({ key: current.key + 1, dueCards: again }))
+    },
+    [cards],
+  )
+
+  useEffect(() => {
+    const queue = saves.current
+    return () => {
+      void Promise.allSettled(queue.values()).then(() => onExit?.())
+    }
+  }, [onExit])
+
+  return (
+    <StudyRound
+      key={round.key}
+      deckName={deckName}
+      backLabel={backLabel}
+      dueCards={round.dueCards}
+      cards={cards}
+      onLeave={onLeave}
+      onAnswer={saveAnswer}
+      onStudyAgain={studyAgain}
+      banner={
+        unsaved.length > 0 ? <UnsavedBanner count={unsaved.length} onRetry={retrySaves} /> : null
+      }
+    />
+  )
+}
+
+interface StudyRoundProps {
+  deckName: string
+  backLabel: string
+  dueCards: Card[]
+  /** Every deck card by id, updated in place as answers are graded and saved. */
+  cards: Map<string, Card>
+  onLeave: () => void
+  onAnswer: (answer: CardResult) => void
+  onStudyAgain: (cardIds: string[]) => void
+  /** Shown under the progress bar on both the live card and the complete screen. */
+  banner: ReactNode
+}
+
+function StudyRound({
+  deckName,
+  backLabel,
+  dueCards,
+  cards,
+  onLeave,
+  onAnswer,
+  onStudyAgain,
+  banner,
+}: StudyRoundProps) {
+  const [session] = useState(() => new Session(dueCards))
   const [question, setQuestion] = useState<Question | null>(() => nextQuestion(session, cards))
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [stepIndex, setStepIndex] = useState(0)
   const [missed, setMissed] = useState(false)
   const [history, setHistory] = useState<AnsweredStep[]>([])
+  const [results, setResults] = useState<CardResult[]>([])
   // Index into history while looking back; null shows the live card.
   const [reviewIndex, setReviewIndex] = useState<number | null>(null)
   const answering = useRef(false)
-  const saves = useRef(new Map<string, Promise<void>>())
   const done = question === null
   const step = question?.steps[stepIndex]
   const lastStep = question != null && stepIndex === question.steps.length - 1
@@ -76,9 +149,11 @@ export function StudySession({
       const card = cards.get(question.cardId)
       session.answer(question.cardId, cardCorrect)
       if (card) cards.set(card.id, applyAnswer(card, cardCorrect))
-      persistAnswer(saves.current, cards, question.cardId, cardCorrect, onNotice)
+      const result = { cardId: question.cardId, correct: cardCorrect }
+      setResults((graded) => [...graded, result])
+      onAnswer(result)
     },
-    [cards, feedback, missed, onNotice, question, session, stepIndex],
+    [cards, feedback, missed, onAnswer, question, session, stepIndex],
   )
 
   const continueSession = useCallback(() => {
@@ -110,13 +185,6 @@ export function StudySession({
   const showNext = useCallback(() => {
     setReviewIndex((index) => (index === null || index + 1 >= history.length ? null : index + 1))
   }, [history.length])
-
-  useEffect(() => {
-    const queue = saves.current
-    return () => {
-      void Promise.allSettled(queue.values()).then(() => onExit?.())
-    }
-  }, [onExit])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -197,25 +265,18 @@ export function StudySession({
           value={progress}
           label={done ? 'Session complete' : `Round ${session.round}, ${roundShown} of ${roundLength}`}
         />
+        {banner}
 
         {!view ? (
-          <section className="study-complete">
-            <div className="complete-card">
-              <h1>Session complete</h1>
-              <p>
-                {session.completed} {session.completed === 1 ? 'card is' : 'cards are'} done for now.
-                Misses will come back sooner; anything you confirmed can wait until its next due day.
-              </p>
-              <div className="complete-card__actions">
-                <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
-                {history.length > 0 ? (
-                  <Button variant="ghost" icon={<ChevronLeft size={17} />} onClick={showPrevious}>
-                    Look back
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          </section>
+          <SessionComplete
+            completed={session.completed}
+            summary={summarizeResults(results)}
+            cards={cards}
+            backLabel={backLabel}
+            onLeave={onLeave}
+            onLookBack={history.length > 0 ? showPrevious : undefined}
+            onStudyAgain={onStudyAgain}
+          />
         ) : (
           <>
             <div className="study-scroll">
@@ -264,6 +325,81 @@ export function StudySession({
         )}
       </div>
     </main>
+  )
+}
+
+/** End-of-round summary: first-try accuracy, the cards missed, and a way to drill them again. */
+function SessionComplete({
+  completed,
+  summary,
+  cards,
+  backLabel,
+  onLeave,
+  onLookBack,
+  onStudyAgain,
+}: Readonly<{
+  completed: number
+  summary: SessionSummary
+  cards: Map<string, Card>
+  backLabel: string
+  onLeave: () => void
+  onLookBack?: () => void
+  onStudyAgain: (cardIds: string[]) => void
+}>) {
+  const missedCards = summary.missedIds.flatMap((id) => cards.get(id) ?? [])
+  return (
+    <section className="study-complete">
+      <div className="complete-card">
+        <h1>Session complete</h1>
+        {summary.studied > 0 ? (
+          <p className="complete-card__score">
+            {summary.firstTry} of {summary.studied} right on the first try
+          </p>
+        ) : null}
+        <p>
+          {completed} {completed === 1 ? 'card is' : 'cards are'} done for now.
+          Misses will come back sooner; anything you confirmed can wait until its next due day.
+        </p>
+        {missedCards.length > 0 ? (
+          <div className="complete-misses">
+            <h2>Missed this session</h2>
+            <ul role="list">
+              {missedCards.map((card) => (
+                <li key={card.id}>
+                  <CardText text={card.front} phrases={[]} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <div className="complete-card__actions">
+          <Button variant="primary" onClick={onLeave}>{backLabel}</Button>
+          {missedCards.length > 0 ? (
+            <Button
+              icon={<RotateCcw size={16} />}
+              onClick={() => onStudyAgain(missedCards.map((card) => card.id))}
+            >
+              Study misses again
+            </Button>
+          ) : null}
+          {onLookBack ? (
+            <Button variant="ghost" icon={<ChevronLeft size={17} />} onClick={onLookBack}>
+              Look back
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/** Stays up while any answer is unsaved, unlike the auto-dismissing workspace notice. */
+function UnsavedBanner({ count, onRetry }: Readonly<{ count: number; onRetry: () => void }>) {
+  return (
+    <div className="study-unsaved" role="alert">
+      <span>{count} {count === 1 ? 'answer' : 'answers'} couldn’t be saved.</span>
+      <Button size="small" icon={<RotateCcw size={15} />} onClick={onRetry}>Retry</Button>
+    </div>
   )
 }
 
@@ -413,24 +549,21 @@ function ChoiceList({
   )
 }
 
+/** Saves an answer behind any earlier save for the same card; failures go to onFailed. */
 function persistAnswer(
   queue: Map<string, Promise<void>>,
   cards: Map<string, Card>,
-  cardId: string,
-  correct: boolean,
-  onNotice: (message: string) => void,
+  answer: CardResult,
+  onFailed: () => void,
 ) {
-  const previous = queue.get(cardId) ?? Promise.resolve()
+  const previous = queue.get(answer.cardId) ?? Promise.resolve()
   const next = previous
-    .catch(() => undefined)
-    .then(() => recordAnswerFn({ data: { cardId, correct } }))
+    .then(() => recordAnswerFn({ data: { cardId: answer.cardId, correct: answer.correct } }))
     .then((updated) => {
       cards.set(updated.id, updated)
     })
-    .catch(() => {
-      onNotice('An answer could not be saved, so that card will come up again next time.')
-    })
-  queue.set(cardId, next)
+    .catch(onFailed)
+  queue.set(answer.cardId, next)
 }
 
 function nextQuestion(session: Session, cards: Map<string, Card>): Question | null {

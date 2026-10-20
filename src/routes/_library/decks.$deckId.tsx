@@ -8,10 +8,14 @@ export const Route = createFileRoute('/_library/decks/$deckId')({
   // A deleted or mistyped deck sends you back to the library instead of an empty screen.
   loader: async ({ params, parentMatchPromise }) => {
     const library = (await parentMatchPromise).loaderData
-    if (!library?.decks.some((deck) => deck.id === params.deckId)) {
-      throw redirect({ to: '/', replace: true })
-    }
+    const deck = library?.decks.find((item) => item.id === params.deckId)
+    if (!deck) throw redirect({ to: '/', replace: true })
+    return { name: deck.name }
   },
+  // Re-runs with the loader, so a rename updates the tab title too.
+  head: ({ loaderData }) => ({
+    meta: loaderData ? [{ title: `${loaderData.name} · StudyBuddy` }] : [],
+  }),
   component: DeckRoute,
 })
 
