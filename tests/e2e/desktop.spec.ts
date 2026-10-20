@@ -85,15 +85,15 @@ test('supports the complete library workflow', async ({ page }) => {
 test('records answers and supports keyboard study controls', async ({ page }) => {
   await page.goto('/')
   await page.waitForLoadState('networkidle')
-  await page.getByLabel('Decks with cards due').getByRole('link', { name: /Architecture vs Organization/ }).click()
+  // Studying all cards keeps this independent of how many cards are due in the dev data.
+  await page.getByRole('navigation', { name: 'Study library' }).getByRole('link', { name: /Architecture vs Organization/ }).click()
 
   await expect(page.getByRole('heading', { name: 'Architecture vs Organization' })).toBeVisible()
   await expect(page.locator('.deck-overview__summary')).toContainText('due')
-  await page.getByRole('button', { name: /Study \d+/ }).click()
+  await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
   const studyDialog = page.getByRole('dialog', { name: /Study Architecture vs Organization/ })
   await expect(studyDialog.getByRole('button', { name: /Due only/ })).toBeVisible()
-  await expect(studyDialog.getByRole('button', { name: /All cards/ })).toBeVisible()
-  await studyDialog.getByRole('button', { name: /Due only/ }).click()
+  await studyDialog.getByRole('button', { name: /All cards/ }).click()
 
   await expect(page.getByLabel('Answer choices')).toBeVisible()
   await expect(page.getByLabel('Answer choices').getByRole('button')).toHaveCount(4)

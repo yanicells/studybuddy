@@ -20,7 +20,7 @@ test('keeps library and study controls usable on a phone', async ({ page }) => {
   await expect(page).toHaveURL(/\/decks\//)
 
   await page.locator('.workspace-header').getByRole('button', { name: /Study/ }).click()
-  await page.getByRole('dialog', { name: /Study Architecture vs Organization/ }).getByRole('button', { name: /Due only/ }).click()
+  await page.getByRole('dialog', { name: /Study Architecture vs Organization/ }).getByRole('button', { name: /All cards/ }).click()
   await expect(page.getByLabel('Answer choices')).toBeVisible()
   await expect(page.getByLabel('Answer choices').getByRole('button')).toHaveCount(4)
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
