@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 
-import { cleanup, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -55,6 +55,27 @@ describe('StudySession', () => {
     await first.promise
   })
 
+  it('keeps a failed save and sends it again on retry', async () => {
+    const user = userEvent.setup()
+    vi.mocked(recordAnswerFn)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockImplementation(async ({ data }) => dueCards.find((card) => card.id === data.cardId)!)
+
+    renderSession()
+    await user.click(firstChoice())
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent('1 answer couldn’t be saved.')
+
+    await user.click(within(banner).getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(recordAnswerFn).toHaveBeenCalledTimes(2))
+    const { calls, results } = vi.mocked(recordAnswerFn).mock
+    expect(calls[1]).toEqual(calls[0])
+    await results[1]?.value
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('asks each cloze blank before saving the card', async () => {
     const user = userEvent.setup()
     vi.mocked(recordAnswerFn).mockResolvedValue(multiCard)
@@ -65,7 +86,6 @@ describe('StudySession', () => {
         dueCards={[multiCard]}
         deckCards={[multiCard, ...dueCards]}
         onLeave={() => undefined}
-        onNotice={() => undefined}
       />,
     )
 
@@ -104,7 +124,6 @@ describe('StudySession', () => {
         dueCards={[multiCard]}
         deckCards={[multiCard, ...dueCards]}
         onLeave={() => undefined}
-        onNotice={() => undefined}
       />,
     )
 
@@ -159,7 +178,6 @@ describe('StudySession', () => {
         dueCards={[nucleus]}
         deckCards={dueCards}
         onLeave={() => undefined}
-        onNotice={() => undefined}
       />,
     )
 
@@ -190,7 +208,6 @@ describe('StudySession', () => {
         dueCards={[bulletCard]}
         deckCards={[bulletCard, ...dueCards]}
         onLeave={() => undefined}
-        onNotice={() => undefined}
       />,
     )
 
@@ -226,7 +243,6 @@ function renderSession() {
       dueCards={dueCards}
       deckCards={dueCards}
       onLeave={() => undefined}
-      onNotice={() => undefined}
     />,
   )
 }

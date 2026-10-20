@@ -1567,6 +1567,20 @@ summary {
   white-space: nowrap;
 }
 
+.study-unsaved {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.65rem;
+  padding: 0.45rem 0.45rem 0.45rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 8px;
+  background: #fdf2f0;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
 .progress {
   direction: ltr;
   width: 100%;

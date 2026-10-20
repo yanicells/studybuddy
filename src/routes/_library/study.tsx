@@ -10,7 +10,6 @@ import {
   studySourceSelection,
 } from '../../features/library/library.navigation'
 import { studySearchSchema } from '../../features/library/library.schemas'
-import { useWorkspace } from '../../features/library/WorkspaceContext'
 import { StudyEmpty } from '../../features/study/StudyEmpty'
 import { StudySession } from '../../features/study/StudySession'
 
@@ -47,7 +46,6 @@ function StudyRoute() {
   const sessionId = Route.useMatch({ select: (match) => match.id })
   const navigate = useNavigate()
   const router = useRouter()
-  const { notify } = useWorkspace()
   const back = selectionLocation(studySourceSelection(source))
   const backLabel =
     source.kind === 'deck' ? 'Back to deck' : source.kind === 'folder' ? 'Back to folder' : 'Back to library'
@@ -76,7 +74,6 @@ function StudyRoute() {
       backLabel={backLabel}
       dueCards={dueCards}
       deckCards={deckCards}
-      onNotice={notify}
       onLeave={() => void navigate(back)}
       onExit={refreshLibrary}
     />

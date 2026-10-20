@@ -1,5 +1,5 @@
 import { ArrowLeft, Check, ChevronLeft, RotateCcw, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Button } from '../../components/Button'
 import { CardText } from '../../components/CardText'
@@ -16,7 +16,6 @@ interface StudySessionProps {
   dueCards: Card[]
   deckCards: Card[]
   onLeave: () => void
-  onNotice: (message: string) => void
   /**
    * Called after the session unmounts and its in-flight answers have saved, e.g. to refresh
    * library stats. Pass a stable callback.
@@ -47,17 +46,24 @@ export function StudySession({
   dueCards,
   deckCards,
   onLeave,
-  onNotice,
   onExit,
 }: StudySessionProps) {
   const [cards] = useState(() => new Map(deckCards.map((card) => [card.id, card])))
   const [round, setRound] = useState({ key: 0, dueCards })
   const saves = useRef(new Map<string, Promise<void>>())
+  // Answers whose save failed, kept until a retry succeeds.
+  const [unsaved, setUnsaved] = useState<CardResult[]>([])
 
   const saveAnswer = useCallback(
-    (cardId: string, correct: boolean) => persistAnswer(saves.current, cards, cardId, correct, onNotice),
-    [cards, onNotice],
+    (answer: CardResult) =>
+      persistAnswer(saves.current, cards, answer, () => setUnsaved((failed) => [...failed, answer])),
+    [cards],
   )
+
+  const retrySaves = useCallback(() => {
+    setUnsaved((failed) => failed.filter((answer) => !unsaved.includes(answer)))
+    for (const answer of unsaved) saveAnswer(answer)
+  }, [saveAnswer, unsaved])
 
   const studyAgain = useCallback(
     (cardIds: string[]) => {
@@ -84,6 +90,9 @@ export function StudySession({
       onLeave={onLeave}
       onAnswer={saveAnswer}
       onStudyAgain={studyAgain}
+      banner={
+        unsaved.length > 0 ? <UnsavedBanner count={unsaved.length} onRetry={retrySaves} /> : null
+      }
     />
   )
 }
@@ -95,8 +104,10 @@ interface StudyRoundProps {
   /** Every deck card by id, updated in place as answers are graded and saved. */
   cards: Map<string, Card>
   onLeave: () => void
-  onAnswer: (cardId: string, correct: boolean) => void
+  onAnswer: (answer: CardResult) => void
   onStudyAgain: (cardIds: string[]) => void
+  /** Shown under the progress bar on both the live card and the complete screen. */
+  banner: ReactNode
 }
 
 function StudyRound({
@@ -107,6 +118,7 @@ function StudyRound({
   onLeave,
   onAnswer,
   onStudyAgain,
+  banner,
 }: StudyRoundProps) {
   const [session] = useState(() => new Session(dueCards))
   const [question, setQuestion] = useState<Question | null>(() => nextQuestion(session, cards))
@@ -137,8 +149,9 @@ function StudyRound({
       const card = cards.get(question.cardId)
       session.answer(question.cardId, cardCorrect)
       if (card) cards.set(card.id, applyAnswer(card, cardCorrect))
-      setResults((graded) => [...graded, { cardId: question.cardId, correct: cardCorrect }])
-      onAnswer(question.cardId, cardCorrect)
+      const result = { cardId: question.cardId, correct: cardCorrect }
+      setResults((graded) => [...graded, result])
+      onAnswer(result)
     },
     [cards, feedback, missed, onAnswer, question, session, stepIndex],
   )
@@ -252,6 +265,7 @@ function StudyRound({
           value={progress}
           label={done ? 'Session complete' : `Round ${session.round}, ${roundShown} of ${roundLength}`}
         />
+        {banner}
 
         {!view ? (
           <SessionComplete
@@ -376,6 +390,16 @@ function SessionComplete({
         </div>
       </div>
     </section>
+  )
+}
+
+/** Stays up while any answer is unsaved, unlike the auto-dismissing workspace notice. */
+function UnsavedBanner({ count, onRetry }: Readonly<{ count: number; onRetry: () => void }>) {
+  return (
+    <div className="study-unsaved" role="alert">
+      <span>{count} {count === 1 ? 'answer' : 'answers'} couldn’t be saved.</span>
+      <Button size="small" icon={<RotateCcw size={15} />} onClick={onRetry}>Retry</Button>
+    </div>
   )
 }
 
@@ -525,24 +549,21 @@ function ChoiceList({
   )
 }
 
+/** Saves an answer behind any earlier save for the same card; failures go to onFailed. */
 function persistAnswer(
   queue: Map<string, Promise<void>>,
   cards: Map<string, Card>,
-  cardId: string,
-  correct: boolean,
-  onNotice: (message: string) => void,
+  answer: CardResult,
+  onFailed: () => void,
 ) {
-  const previous = queue.get(cardId) ?? Promise.resolve()
+  const previous = queue.get(answer.cardId) ?? Promise.resolve()
   const next = previous
-    .catch(() => undefined)
-    .then(() => recordAnswerFn({ data: { cardId, correct } }))
+    .then(() => recordAnswerFn({ data: { cardId: answer.cardId, correct: answer.correct } }))
     .then((updated) => {
       cards.set(updated.id, updated)
     })
-    .catch(() => {
-      onNotice('An answer could not be saved, so that card will come up again next time.')
-    })
-  queue.set(cardId, next)
+    .catch(onFailed)
+  queue.set(answer.cardId, next)
 }
 
 function nextQuestion(session: Session, cards: Map<string, Card>): Question | null {
