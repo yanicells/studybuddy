@@ -6,6 +6,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Search,
   Trash2,
   X,
 } from 'lucide-react'
@@ -26,6 +27,8 @@ import type { StudyMode } from '../../core/queue'
 import { folderPath, rollupStats } from '../../core/stats'
 import { studyDeckIds, type StudySource } from '../../core/studyScope'
 import type { Folder, LibrarySnapshot } from '../../core/types'
+import { QuickSearch } from '../search/QuickSearch'
+import { useSearchShortcut } from '../search/useSearchShortcut'
 import { readExpandedFolders, saveExpandedFolders } from './expandedFolders'
 import { reorderDecksFn, reorderFoldersFn } from './library.functions'
 import { selectionLocation, studySearch } from './library.navigation'
@@ -70,6 +73,7 @@ export function LibraryWorkspace() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [startingStudy, setStartingStudy] = useState(false)
+  const [searching, setSearching] = useState(false)
   const reordering = pendingReorder !== null
 
   const selection: Selection = params.deckId
@@ -106,6 +110,8 @@ export function LibraryWorkspace() {
     const timeout = window.setTimeout(() => setNotice(null), 6000)
     return () => window.clearTimeout(timeout)
   }, [notice])
+
+  useSearchShortcut(!studying && !searching && dialog === null, () => setSearching(true))
 
   const select = useCallback(async (next: Selection) => {
     setDrawerOpen(false)
@@ -233,6 +239,17 @@ export function LibraryWorkspace() {
             <h1>{title}</h1>
           </div>
           <div className="header-actions">
+            <Button
+              className="search-open"
+              variant="ghost"
+              size="small"
+              aria-label="Search library"
+              aria-keyshortcuts="Meta+K Control+K /"
+              title="Search (⌘K or /)"
+              onClick={() => setSearching(true)}
+            >
+              <Search size={18} />
+            </Button>
             {scopedDeckIds.length > 0 ? (
               <Button
                 variant="primary"
@@ -358,6 +375,9 @@ export function LibraryWorkspace() {
         onNotice={setNotice}
         onStartStudy={(deckIds, source, mode) => void beginStudy(deckIds, source, mode)}
       />
+      {searching ? (
+        <QuickSearch library={library} onClose={() => setSearching(false)} onSelect={select} />
+      ) : null}
     </main>
   )
 }
