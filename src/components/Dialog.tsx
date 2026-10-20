@@ -23,7 +23,11 @@ export function Dialog({ title, description, children, onClose, wide = false }: 
     const previouslyFocused = document.activeElement as HTMLElement | null
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    dialogRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus()
+    // A child can claim initial focus with data-autofocus; otherwise the first control gets it.
+    const dialog = dialogRef.current
+    const initial =
+      dialog?.querySelector<HTMLElement>('[data-autofocus]') ?? dialog?.querySelector<HTMLElement>(FOCUSABLE)
+    initial?.focus()
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
