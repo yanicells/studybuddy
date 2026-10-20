@@ -143,3 +143,31 @@ function hitsNeeded(item: Track): number {
 function shouldRetire(item: Track): boolean {
   return item.correct >= hitsNeeded(item)
 }
+
+/** One graded card, recorded each time its final step is answered. */
+export interface CardResult {
+  cardId: string
+  correct: boolean
+}
+
+export interface SessionSummary {
+  studied: number
+  firstTry: number
+  /** Cards missed at least once, in the order they were first missed. */
+  missedIds: string[]
+}
+
+/** First-try accuracy and missed cards from card results in answer order. */
+export function summarizeResults(results: CardResult[]): SessionSummary {
+  const firstTries = new Map<string, boolean>()
+  const missed = new Set<string>()
+  for (const { cardId, correct } of results) {
+    if (!firstTries.has(cardId)) firstTries.set(cardId, correct)
+    if (!correct) missed.add(cardId)
+  }
+  return {
+    studied: firstTries.size,
+    firstTry: [...firstTries.values()].filter(Boolean).length,
+    missedIds: [...missed],
+  }
+}
