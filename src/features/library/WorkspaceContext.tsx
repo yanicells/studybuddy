@@ -13,7 +13,6 @@ export interface Workspace {
   select: (selection: Selection) => Promise<void>
   openDialog: (dialog: LibraryDialog) => void
   reorder: (request: ReorderRequest) => void
-  notify: (message: string) => void
 }
 
 export const WorkspaceContext = createContext<Workspace | null>(null)

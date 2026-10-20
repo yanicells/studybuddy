@@ -147,7 +147,6 @@ export function LibraryWorkspace() {
     select,
     openDialog: setDialog,
     reorder: (request) => void handleReorder(request),
-    notify: setNotice,
   }), [handleReorder, library, reordering, select])
 
   async function beginStudy(deckIds: string[], source: StudySource, mode: StudyMode) {
