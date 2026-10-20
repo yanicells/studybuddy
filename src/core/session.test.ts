@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { Session } from './session'
+import { Session, summarizeResults } from './session'
 import type { Card, Status } from './types'
 
 function cards(count: number, status: Status = 'new'): Card[] {
@@ -105,5 +105,24 @@ describe('study session rounds', () => {
     expect(session.nextCard()).toBe(id)
     session.answer(id, true)
     expect(session.nextCard()).toBeNull()
+  })
+})
+
+describe('session summary', () => {
+  it('counts first tries per card and lists every card missed at least once', () => {
+    const summary = summarizeResults([
+      { cardId: 'a', correct: true },
+      { cardId: 'b', correct: false },
+      { cardId: 'c', correct: true },
+      { cardId: 'b', correct: true },
+      { cardId: 'a', correct: false },
+      { cardId: 'b', correct: false },
+    ])
+
+    expect(summary).toEqual({ studied: 3, firstTry: 2, missedIds: ['b', 'a'] })
+  })
+
+  it('is empty before any card is graded', () => {
+    expect(summarizeResults([])).toEqual({ studied: 0, firstTry: 0, missedIds: [] })
   })
 })
