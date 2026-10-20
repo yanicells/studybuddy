@@ -15,6 +15,7 @@ vi.mock('@tanstack/react-router', () => ({
 
 afterEach(() => {
   cleanup()
+  localStorage.clear()
 })
 
 describe('LibraryDialogs study choices', () => {
@@ -74,6 +75,23 @@ describe('LibraryDialogs study choices', () => {
       { kind: 'folder', id: '1' },
       'all',
     )
+  })
+
+  it('remembers unchecked decks for the same source on the next open', async () => {
+    const user = userEvent.setup()
+    const folderDialog: LibraryDialog = { kind: 'study', source: { kind: 'folder', id: '1' } }
+    renderDialog({ dialog: folderDialog, library: nestedLibrary })
+    await user.click(screen.getByRole('checkbox', { name: /Unit 1/ }))
+    await user.click(screen.getByRole('button', { name: /All cards/ }))
+    cleanup()
+
+    renderDialog({ dialog: folderDialog, library: nestedLibrary })
+    expect(screen.getByRole('checkbox', { name: /Unit 1/ })).toHaveAttribute('aria-checked', 'false')
+    expect(document.querySelector('.study-picker__summary')).toHaveTextContent('1 of 2 decks')
+    cleanup()
+
+    renderDialog({ dialog: { kind: 'study', source: { kind: 'library' } }, library: nestedLibrary })
+    expect(document.querySelector('.study-picker__summary')).toHaveTextContent('2 of 2 decks')
   })
 
   it('shows partial selection on a parent folder', async () => {

@@ -32,6 +32,9 @@ export const Route = createFileRoute('/_library/study')({
     const session = await startStudyFn({ data: { deckIds, mode: deps.mode } })
     return { ...session, source, name: studySourceName(library, source) }
   },
+  head: ({ loaderData }) => ({
+    meta: loaderData ? [{ title: `Study ${loaderData.name} · StudyBuddy` }] : [],
+  }),
   // Each visit builds a fresh queue; a cached one would replay stale due cards.
   gcTime: 0,
   // Fast starts swap straight in; slower ones show the study skeleton.

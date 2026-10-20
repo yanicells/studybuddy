@@ -16,6 +16,7 @@ import { descendantDeckIds, rollupStats } from '../../core/stats'
 import { studyDeckIds, studySourceName, type StudySource } from '../../core/studyScope'
 import { EMPTY_STATS, type DeckStats, type LibrarySnapshot } from '../../core/types'
 import type { LibraryDialog } from './library.types'
+import { initialPickerSelection, readSkippedDecks, saveSkippedDecks } from './studyPickerMemory'
 
 interface StudyPickerDialogProps {
   dialog: Extract<NonNullable<LibraryDialog>, { kind: 'study' }>
@@ -34,7 +35,9 @@ export function StudyPickerDialog({
     () => studyDeckIds(library, dialog.source),
     [dialog.source, library],
   )
-  const [selectedDeckIds, setSelectedDeckIds] = useState(() => new Set(sourceDeckIds))
+  const [selectedDeckIds, setSelectedDeckIds] = useState(() =>
+    initialPickerSelection(sourceDeckIds, readSkippedDecks(dialog.source)),
+  )
   const [expandedFolders, setExpandedFolders] = useState(
     () => new Set(library.folders.map((folder) => folder.id)),
   )
@@ -80,6 +83,9 @@ export function StudyPickerDialog({
 
   function start(mode: StudyMode) {
     if (selectedIds.length === 0 || selectedCards === 0) return
+    if (showTree) {
+      saveSkippedDecks(dialog.source, sourceDeckIds.filter((id) => !selectedDeckIds.has(id)))
+    }
     onClose()
     onStartStudy(selectedIds, dialog.source, mode)
   }
