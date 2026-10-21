@@ -2,7 +2,7 @@ import { v } from 'convex/values'
 
 import { buildStudyQueue } from '../src/core/queue'
 import { applyAnswer } from '../src/core/srs'
-import { reviewedToday, studyStreak, sumStats } from '../src/core/stats'
+import { localDay, studyStreak, sumStats, type DayRange } from '../src/core/stats'
 import {
   EMPTY_STATS,
   isDue,
@@ -372,24 +372,27 @@ export async function loadSnapshot(ctx: DbCtx) {
     stats[card.status] += 1
     if (isDue(card, now)) stats.due += 1
   }
-  const reviewRows = await ctx.db.query('reviews').collect()
-  const totals = sumStats(statsByDeck)
   return {
     folders,
     decks,
     cardsByDeck,
     statsByDeck,
-    study: {
-      due: totals.due,
-      reviewedToday: reviewedToday(
-        reviewRows.map((row) => row.reviewedAt),
-        now,
-      ),
-      streak: studyStreak(
-        reviewRows.map((row) => row.reviewedAt),
-        now,
-      ),
-    },
+    study: { due: sumStats(statsByDeck).due, ...(await studyActivity(ctx, now)) },
+  }
+}
+
+/**
+ * Today's review count and the current streak. Reads only today's reviews plus one per
+ * streak day, so the snapshot doesn't grow with the full review history.
+ */
+async function studyActivity(ctx: DbCtx, now: Date) {
+  const reviewsOn = (day: DayRange) =>
+    ctx.db
+      .query('reviews')
+      .withIndex('by_reviewedAt', (q) => q.gte('reviewedAt', day.start).lt('reviewedAt', day.end))
+  return {
+    reviewedToday: (await reviewsOn(localDay(now)).collect()).length,
+    streak: await studyStreak(now, async (day) => (await reviewsOn(day).first()) !== null),
   }
 }
 

@@ -4,10 +4,11 @@ import {
   descendantDeckIds,
   folderPath,
   highestDueDeck,
-  reviewedToday,
+  localDay,
   rollupStats,
   studyStreak,
   sumStats,
+  type DayRange,
 } from './stats'
 import { EMPTY_STATS, type LibrarySnapshot } from './types'
 
@@ -17,24 +18,27 @@ function iso(year: number, month: number, day: number, hour = 9): string {
   return new Date(year, month, day, hour).toISOString()
 }
 
+function studiedOn(reviewTimes: string[]) {
+  return async (day: DayRange) => reviewTimes.some((time) => time >= day.start && time < day.end)
+}
+
 describe('study stats', () => {
-  it('counts reviews from the current local day', () => {
+  it('spans the local day from midnight to the next midnight', () => {
+    expect(localDay(NOW)).toEqual({ start: iso(2026, 7, 13, 0), end: iso(2026, 7, 14, 0) })
+  })
+
+  it('keeps a streak if today is not done yet', async () => {
+    expect(await studyStreak(NOW, studiedOn([iso(2026, 7, 12), iso(2026, 7, 11)]))).toBe(2)
+  })
+
+  it('counts consecutive days including today', async () => {
     expect(
-      reviewedToday(
-        [iso(2026, 7, 13, 8), iso(2026, 7, 13, 21), iso(2026, 7, 12, 23)],
-        NOW,
-      ),
+      await studyStreak(NOW, studiedOn([iso(2026, 7, 13), iso(2026, 7, 12), iso(2026, 7, 10)])),
     ).toBe(2)
   })
 
-  it('keeps a streak if today is not done yet', () => {
-    expect(studyStreak([iso(2026, 7, 12), iso(2026, 7, 11)], NOW)).toBe(2)
-  })
-
-  it('counts consecutive days including today', () => {
-    expect(
-      studyStreak([iso(2026, 7, 13), iso(2026, 7, 12), iso(2026, 7, 10)], NOW),
-    ).toBe(2)
+  it('has no streak after a missed day', async () => {
+    expect(await studyStreak(NOW, studiedOn([iso(2026, 7, 11)]))).toBe(0)
   })
 
   it('rolls folder stats through nested decks', () => {
