@@ -63,6 +63,26 @@ describe('library repository', () => {
     })
   })
 
+  it('appends imported cards after existing ones in order', async () => {
+    const t = testConvex()
+    const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Cells' })
+    await t.mutation(api.library.createCard, {
+      deckId: deckId(deck.id),
+      card: { front: 'Existing', back: '', highlights: [] },
+    })
+    await t.mutation(api.library.importCards, {
+      deckId: deckId(deck.id),
+      cards: ['First', ' ', 'Second'].map((front) => ({ front, back: '', highlights: [] })),
+    })
+
+    const cards = await t.query(api.library.listCards, { deckId: deckId(deck.id) })
+    expect(cards.map((card) => [card.front, card.position])).toEqual([
+      ['Existing', 0],
+      ['First', 1],
+      ['Second', 2],
+    ])
+  })
+
   it('persists scheduling and review logs', async () => {
     const t = testConvex()
     const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Review' })

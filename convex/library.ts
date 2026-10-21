@@ -287,12 +287,44 @@ export async function createCardRecord(
   card: NewCard,
 ): Promise<Card> {
   await requireDoc(ctx, deckId, 'Deck not found')
-  const id = await ctx.db.insert('cards', {
+  const id = await insertCard(ctx, deckId, card, await nextPosition(ctx, 'cards', deckId))
+  return mapCard((await ctx.db.get(id))!)
+}
+
+/**
+ * Appends cards to a deck, skipping ones with an empty front. The deck's cards are read
+ * once for the starting position, so large imports stay under Convex's per-mutation read limit.
+ */
+export async function importCardRecords(
+  ctx: MutationCtx,
+  deckId: Id<'decks'>,
+  incoming: NewCard[],
+): Promise<number> {
+  await requireDoc(ctx, deckId, 'Deck not found')
+  let position = await nextPosition(ctx, 'cards', deckId)
+  let count = 0
+  for (const card of incoming) {
+    if (!card.front.trim()) continue
+    await insertCard(ctx, deckId, card, position)
+    position += 1
+    count += 1
+  }
+  return count
+}
+
+/** Inserts an unstudied card. Callers check that the deck exists. */
+function insertCard(
+  ctx: MutationCtx,
+  deckId: Id<'decks'>,
+  card: NewCard,
+  position: number,
+): Promise<Id<'cards'>> {
+  return ctx.db.insert('cards', {
     deckId,
     front: requireFront(card.front),
     back: card.back,
     highlights: card.highlights,
-    position: await nextPosition(ctx, 'cards', deckId),
+    position,
     createdAt: nowIso(),
     status: 'new',
     ease: 2.5,
@@ -304,21 +336,6 @@ export async function createCardRecord(
     learningStep: 0,
     lastReviewedAt: null,
   })
-  return mapCard((await ctx.db.get(id))!)
-}
-
-export async function importCardRecords(
-  ctx: MutationCtx,
-  deckId: Id<'decks'>,
-  incoming: NewCard[],
-): Promise<number> {
-  let count = 0
-  for (const card of incoming) {
-    if (!card.front.trim()) continue
-    await createCardRecord(ctx, deckId, card)
-    count += 1
-  }
-  return count
 }
 
 export async function listFolderDocs(ctx: DbCtx): Promise<Doc<'folders'>[]> {
