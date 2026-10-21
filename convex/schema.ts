@@ -40,5 +40,7 @@ export default defineSchema({
     cardId: v.id('cards'),
     correct: v.boolean(),
     reviewedAt: v.string(),
-  }).index('by_card', ['cardId']),
+  })
+    .index('by_card', ['cardId'])
+    .index('by_reviewedAt', ['reviewedAt']),
 })

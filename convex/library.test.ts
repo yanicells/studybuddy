@@ -63,6 +63,26 @@ describe('library repository', () => {
     })
   })
 
+  it('appends imported cards after existing ones in order', async () => {
+    const t = testConvex()
+    const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Cells' })
+    await t.mutation(api.library.createCard, {
+      deckId: deckId(deck.id),
+      card: { front: 'Existing', back: '', highlights: [] },
+    })
+    await t.mutation(api.library.importCards, {
+      deckId: deckId(deck.id),
+      cards: ['First', ' ', 'Second'].map((front) => ({ front, back: '', highlights: [] })),
+    })
+
+    const cards = await t.query(api.library.listCards, { deckId: deckId(deck.id) })
+    expect(cards.map((card) => [card.front, card.position])).toEqual([
+      ['Existing', 0],
+      ['First', 1],
+      ['Second', 2],
+    ])
+  })
+
   it('persists scheduling and review logs', async () => {
     const t = testConvex()
     const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Review' })
@@ -84,6 +104,29 @@ describe('library repository', () => {
     expect(reviews).toEqual([
       expect.objectContaining({ cardId: card.id, correct: true }),
     ])
+  })
+
+  it('reports reviews done today and the current streak', async () => {
+    const t = testConvex()
+    const deck = await t.mutation(api.library.createDeck, { folderId: null, name: 'Review' })
+    const card = await t.mutation(api.library.createCard, {
+      deckId: deckId(deck.id),
+      card: { front: 'Question', back: 'Answer', highlights: [] },
+    })
+    const now = new Date()
+    const daysAgo = (days: number) =>
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() - days, 12).toISOString()
+    await t.run(async (ctx) => {
+      for (const reviewedAt of [now.toISOString(), now.toISOString(), daysAgo(1), daysAgo(3)]) {
+        await ctx.db.insert('reviews', { cardId: cardId(card.id), correct: true, reviewedAt })
+      }
+    })
+
+    expect((await t.query(api.library.getSnapshot, {})).study).toEqual({
+      due: 1,
+      reviewedToday: 2,
+      streak: 2,
+    })
   })
 
   it('starts study with due cards or all cards across selected decks', async () => {

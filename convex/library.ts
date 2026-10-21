@@ -2,7 +2,7 @@ import { v } from 'convex/values'
 
 import { buildStudyQueue } from '../src/core/queue'
 import { applyAnswer } from '../src/core/srs'
-import { reviewedToday, studyStreak, sumStats } from '../src/core/stats'
+import { localDay, studyStreak, sumStats, type DayRange } from '../src/core/stats'
 import {
   EMPTY_STATS,
   isDue,
@@ -287,12 +287,44 @@ export async function createCardRecord(
   card: NewCard,
 ): Promise<Card> {
   await requireDoc(ctx, deckId, 'Deck not found')
-  const id = await ctx.db.insert('cards', {
+  const id = await insertCard(ctx, deckId, card, await nextPosition(ctx, 'cards', deckId))
+  return mapCard((await ctx.db.get(id))!)
+}
+
+/**
+ * Appends cards to a deck, skipping ones with an empty front. The deck's cards are read
+ * once for the starting position, so large imports stay under Convex's per-mutation read limit.
+ */
+export async function importCardRecords(
+  ctx: MutationCtx,
+  deckId: Id<'decks'>,
+  incoming: NewCard[],
+): Promise<number> {
+  await requireDoc(ctx, deckId, 'Deck not found')
+  let position = await nextPosition(ctx, 'cards', deckId)
+  let count = 0
+  for (const card of incoming) {
+    if (!card.front.trim()) continue
+    await insertCard(ctx, deckId, card, position)
+    position += 1
+    count += 1
+  }
+  return count
+}
+
+/** Inserts an unstudied card. Callers check that the deck exists. */
+function insertCard(
+  ctx: MutationCtx,
+  deckId: Id<'decks'>,
+  card: NewCard,
+  position: number,
+): Promise<Id<'cards'>> {
+  return ctx.db.insert('cards', {
     deckId,
     front: requireFront(card.front),
     back: card.back,
     highlights: card.highlights,
-    position: await nextPosition(ctx, 'cards', deckId),
+    position,
     createdAt: nowIso(),
     status: 'new',
     ease: 2.5,
@@ -304,21 +336,6 @@ export async function createCardRecord(
     learningStep: 0,
     lastReviewedAt: null,
   })
-  return mapCard((await ctx.db.get(id))!)
-}
-
-export async function importCardRecords(
-  ctx: MutationCtx,
-  deckId: Id<'decks'>,
-  incoming: NewCard[],
-): Promise<number> {
-  let count = 0
-  for (const card of incoming) {
-    if (!card.front.trim()) continue
-    await createCardRecord(ctx, deckId, card)
-    count += 1
-  }
-  return count
 }
 
 export async function listFolderDocs(ctx: DbCtx): Promise<Doc<'folders'>[]> {
@@ -355,24 +372,27 @@ export async function loadSnapshot(ctx: DbCtx) {
     stats[card.status] += 1
     if (isDue(card, now)) stats.due += 1
   }
-  const reviewRows = await ctx.db.query('reviews').collect()
-  const totals = sumStats(statsByDeck)
   return {
     folders,
     decks,
     cardsByDeck,
     statsByDeck,
-    study: {
-      due: totals.due,
-      reviewedToday: reviewedToday(
-        reviewRows.map((row) => row.reviewedAt),
-        now,
-      ),
-      streak: studyStreak(
-        reviewRows.map((row) => row.reviewedAt),
-        now,
-      ),
-    },
+    study: { due: sumStats(statsByDeck).due, ...(await studyActivity(ctx, now)) },
+  }
+}
+
+/**
+ * Today's review count and the current streak. Reads only today's reviews plus one per
+ * streak day, so the snapshot doesn't grow with the full review history.
+ */
+async function studyActivity(ctx: DbCtx, now: Date) {
+  const reviewsOn = (day: DayRange) =>
+    ctx.db
+      .query('reviews')
+      .withIndex('by_reviewedAt', (q) => q.gte('reviewedAt', day.start).lt('reviewedAt', day.end))
+  return {
+    reviewedToday: (await reviewsOn(localDay(now)).collect()).length,
+    streak: await studyStreak(now, async (day) => (await reviewsOn(day).first()) !== null),
   }
 }
 

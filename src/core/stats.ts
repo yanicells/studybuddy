@@ -1,22 +1,31 @@
 import { EMPTY_STATS, type Deck, type DeckStats, type Folder, type LibrarySnapshot } from './types'
 
-export function localDayKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+/** A local calendar day as ISO timestamps, `start` inclusive and `end` exclusive. */
+export interface DayRange {
+  start: string
+  end: string
 }
 
-export function reviewedToday(reviewTimes: string[], now = new Date()): number {
-  const today = localDayKey(now)
-  return reviewTimes.filter((time) => localDayKey(new Date(time)) === today).length
+/** The local day containing `date`, shaped for an indexed range read on review times. */
+export function localDay(date: Date): DayRange {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1)
+  return { start: start.toISOString(), end: end.toISOString() }
 }
 
-export function studyStreak(reviewTimes: string[], now = new Date()): number {
-  const days = new Set(reviewTimes.map((time) => localDayKey(new Date(time))))
+/**
+ * Counts consecutive days with at least one review, ending today, or yesterday if today
+ * has none yet. It asks `studiedOn` about one day at a time, so the caller only reads
+ * as many days as the streak is long.
+ */
+export async function studyStreak(
+  now: Date,
+  studiedOn: (day: DayRange) => Promise<boolean>,
+): Promise<number> {
   const cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  if (!days.has(localDayKey(cursor))) {
-    cursor.setDate(cursor.getDate() - 1)
-  }
-  let streak = 0
-  while (days.has(localDayKey(cursor))) {
+  let streak = (await studiedOn(localDay(cursor))) ? 1 : 0
+  cursor.setDate(cursor.getDate() - 1)
+  while (await studiedOn(localDay(cursor))) {
     streak += 1
     cursor.setDate(cursor.getDate() - 1)
   }
